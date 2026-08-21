@@ -9,6 +9,26 @@ import {
   ModelConfig,
   STORAGE_KEYS,
 } from './types'
+import { logger } from './logger'
+
+/** 存储配额上限（P1-2 防崩溃加固） */
+export const QUOTA_LIMITS = {
+  /** 每个域名最多保留的会话数 */
+  maxSessionsPerDomain: 50,
+  /** 单会话最多消息数 */
+  maxMessagesPerSession: 400,
+} as const
+
+/** 安全写入：配额/异常统一容错，避免未捕获 rejection 与写入失败中断流程 */
+async function safeSet(obj: Record<string, unknown>): Promise<boolean> {
+  try {
+    await chrome.storage.local.set(obj)
+    return true
+  } catch (e) {
+    logger.warn('storage', 'chrome.storage.local 写入失败（可能超出配额）', e)
+    return false
+  }
+}
 
 function uid(): string {
   return `id-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
@@ -25,7 +45,7 @@ export async function getSettings(): Promise<AppSettings> {
 
 export async function setSettings(patch: Partial<AppSettings>): Promise<AppSettings> {
   const next = { ...(await getSettings()), ...patch }
-  await chrome.storage.local.set({ [STORAGE_KEYS.settings]: next })
+  await safeSet({ [STORAGE_KEYS.settings]: next })
   return next
 }
 
@@ -46,7 +66,7 @@ export async function getActiveConfigId(): Promise<string | null> {
 }
 
 export async function setActiveConfigId(id: string): Promise<void> {
-  await chrome.storage.local.set({ [STORAGE_KEYS.activeConfig]: id })
+  await safeSet({ [STORAGE_KEYS.activeConfig]: id })
 }
 
 /** 当前生效的模型配置；无配置时返回 null */
@@ -62,7 +82,7 @@ export async function saveConfig(cfg: ModelConfig): Promise<ModelConfig[]> {
   const idx = configs.findIndex((c) => c.id === cfg.id)
   if (idx >= 0) configs[idx] = cfg
   else configs.push(cfg)
-  await chrome.storage.local.set({ [STORAGE_KEYS.configs]: configs })
+  await safeSet({ [STORAGE_KEYS.configs]: configs })
   // 第一条配置自动设为生效配置
   const activeId = await getActiveConfigId()
   if (!activeId || idx < 0) await setActiveConfigId(cfg.id)
@@ -71,7 +91,7 @@ export async function saveConfig(cfg: ModelConfig): Promise<ModelConfig[]> {
 
 export async function deleteConfig(id: string): Promise<ModelConfig[]> {
   const configs = (await getConfigs()).filter((c) => c.id !== id)
-  await chrome.storage.local.set({ [STORAGE_KEYS.configs]: configs })
+  await safeSet({ [STORAGE_KEYS.configs]: configs })
   const activeId = await getActiveConfigId()
   if (activeId === id) {
     await setActiveConfigId(configs.length ? configs[0].id : '')
@@ -94,26 +114,37 @@ export async function getSessionsByDomain(domain: string): Promise<ChatSession[]
 }
 
 export async function saveSession(session: ChatSession): Promise<void> {
+  const capped: ChatSession = {
+    ...session,
+    messages: session.messages.slice(-QUOTA_LIMITS.maxMessagesPerSession),
+  }
   const all = await getSessions()
   const list = all[session.domain] || []
   const idx = list.findIndex((s) => s.id === session.id)
-  if (idx >= 0) list[idx] = session
-  else list.push(session)
+  if (idx >= 0) list[idx] = capped
+  else {
+    list.push(capped)
+    // 每域名会话数上限：超出丢弃最旧
+    if (list.length > QUOTA_LIMITS.maxSessionsPerDomain) {
+      list.sort((a, b) => b.updatedAt - a.updatedAt)
+      list.length = QUOTA_LIMITS.maxSessionsPerDomain
+    }
+  }
   all[session.domain] = list
-  await chrome.storage.local.set({ [STORAGE_KEYS.sessions]: all })
+  await safeSet({ [STORAGE_KEYS.sessions]: all })
 }
 
 export async function deleteSession(domain: string, sessionId: string): Promise<void> {
   const all = await getSessions()
   all[domain] = (all[domain] || []).filter((s) => s.id !== sessionId)
   if (!all[domain].length) delete all[domain]
-  await chrome.storage.local.set({ [STORAGE_KEYS.sessions]: all })
+  await safeSet({ [STORAGE_KEYS.sessions]: all })
 }
 
 export async function clearDomainSessions(domain: string): Promise<void> {
   const all = await getSessions()
   delete all[domain]
-  await chrome.storage.local.set({ [STORAGE_KEYS.sessions]: all })
+  await safeSet({ [STORAGE_KEYS.sessions]: all })
 }
 
 /* ---------------- 弹窗快捷对话会话（与悬浮窗隔离） ---------------- */
@@ -137,10 +168,14 @@ export async function getPopupSession(domain: string): Promise<ChatSession | nul
 
 /** 弹窗快捷对话：保存指定域名的会话 */
 export async function savePopupSession(session: ChatSession): Promise<void> {
+  const capped: ChatSession = {
+    ...session,
+    messages: session.messages.slice(-QUOTA_LIMITS.maxMessagesPerSession),
+  }
   const r = await chrome.storage.local.get(POPUP_SESSIONS_KEY)
   const map = r[POPUP_SESSIONS_KEY] || {}
-  map[session.domain] = session
-  await chrome.storage.local.set({ [POPUP_SESSIONS_KEY]: map })
+  map[session.domain] = capped
+  await safeSet({ [POPUP_SESSIONS_KEY]: map })
 }
 
 /** 弹窗快捷对话：清空指定域名的会话 */
@@ -148,5 +183,5 @@ export async function clearPopupSession(domain: string): Promise<void> {
   const r = await chrome.storage.local.get(POPUP_SESSIONS_KEY)
   const map = r[POPUP_SESSIONS_KEY] || {}
   delete map[domain]
-  await chrome.storage.local.set({ [POPUP_SESSIONS_KEY]: map })
+  await safeSet({ [POPUP_SESSIONS_KEY]: map })
 }

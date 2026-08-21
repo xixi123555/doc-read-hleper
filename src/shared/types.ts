@@ -37,6 +37,8 @@ export interface ModelConfig {
   timeout: number
   /** 本地免密模型标记（apiKey 为空且勾选此项视为配置完成） */
   noKey?: boolean
+  /** 协议类型（默认 OpenAI 兼容；Anthropic 为预留） */
+  protocol?: 'openai' | 'anthropic'
   createdAt: number
 }
 
@@ -106,8 +108,12 @@ export interface AppSettings {
 }
 
 export interface LLMChatMessage {
-  role: 'system' | 'user' | 'assistant'
+  role: 'system' | 'user' | 'assistant' | 'tool'
   content: string
+  /** OpenAI 工具调用（assistant 消息携带） */
+  tool_calls?: Array<{ id: string; name: string; arguments: unknown }>
+  /** 工具结果消息关联的调用 id */
+  tool_call_id?: string
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {

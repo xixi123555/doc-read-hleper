@@ -138,6 +138,7 @@ onBeforeUnmount(() => {
   window.removeEventListener('message', onWindowMessage)
   window.clearTimeout(toastTimer)
   window.clearTimeout(saveTimer)
+  window.clearTimeout(chunkTimer)
   try {
     port?.disconnect()
   } catch {
@@ -228,13 +229,45 @@ function startNewSession() {
   messages.value = []
 }
 
-function onPortMessage(msg: any) {
-  if (msg.type === 'llm-chunk' && streaming.value?.id === msg.id) {
-    streaming.value.buffer += msg.delta || ''
+/** 流式渲染节流：合并 chunk，40ms 批量刷新一次（约 25fps），避免每 token 全量重渲染 */
+let chunkTimer: number | undefined
+let pendingDelta = ''
+
+function flushPendingDelta() {
+  if (chunkTimer) {
+    window.clearTimeout(chunkTimer)
+    chunkTimer = undefined
+  }
+  if (pendingDelta && streaming.value) {
+    streaming.value.buffer += pendingDelta
+    pendingDelta = ''
+    const last = messages.value[messages.value.length - 1]
+    if (last) last.content = streaming.value.buffer
+  }
+}
+
+function scheduleChunkFlush() {
+  if (chunkTimer) return
+  chunkTimer = window.setTimeout(() => {
+    chunkTimer = undefined
+    if (!streaming.value) {
+      pendingDelta = ''
+      return
+    }
+    streaming.value.buffer += pendingDelta
+    pendingDelta = ''
     const last = messages.value[messages.value.length - 1]
     if (last) last.content = streaming.value.buffer
     scrollBottom()
+  }, 40)
+}
+
+function onPortMessage(msg: any) {
+  if (msg.type === 'llm-chunk' && streaming.value?.id === msg.id) {
+    pendingDelta += msg.delta || ''
+    scheduleChunkFlush()
   } else if (msg.type === 'llm-done' && streaming.value?.id === msg.id) {
+    flushPendingDelta()
     const last = messages.value[messages.value.length - 1]
     if (last) {
       if (msg.content) last.content = msg.content
@@ -246,6 +279,7 @@ function onPortMessage(msg: any) {
     streaming.value = null
     saveSoon()
   } else if (msg.type === 'llm-error' && streaming.value?.id === msg.id) {
+    flushPendingDelta()
     const last = messages.value[messages.value.length - 1]
     if (last) {
       last.content =
@@ -332,9 +366,11 @@ async function send(text?: string) {
       textLen: ctx.text.length,
     })
   }
+  // 只带最近 12 条历史，避免长对话请求体无界增长
   const history = messages.value
     .slice(0, -2)
     .map((m) => ({ role: m.role, content: m.content }))
+    .slice(-12)
   const ok = await postToBackground({
     type: 'llm-chat',
     payload: {
@@ -354,6 +390,7 @@ async function send(text?: string) {
 
 function stop() {
   if (!streaming.value) return
+  flushPendingDelta()
   void postToBackground({ type: 'abort', id: streaming.value.id })
   const last = messages.value[messages.value.length - 1]
   if (last) last.content += '\n\n*（已停止生成）*'
@@ -622,6 +659,23 @@ const ctxStatus = computed(() => {
     cls: 'text-success bg-[rgba(52,199,123,0.12)] hover:text-success',
   }
 })
+
+/* ---------------- 消息列表上限（防长对话内存/渲染无界增长） ---------------- */
+
+const MAX_RENDER_MESSAGES = 200
+const showAllMessages = ref(false)
+
+const displayMessages = computed(() => {
+  if (showAllMessages.value || messages.value.length <= MAX_RENDER_MESSAGES) return messages.value
+  return messages.value.slice(-MAX_RENDER_MESSAGES)
+})
+const foldedCount = computed(() =>
+  Math.max(0, messages.value.length - displayMessages.value.length),
+)
+
+function expandMessages() {
+  showAllMessages.value = true
+}
 </script>
 
 <template>
@@ -689,11 +743,22 @@ const ctxStatus = computed(() => {
               <button class="chip" @click="runQuickCommand('explain')">🧠 解读知识点</button>
             </div>
           </div>
+          <div
+            v-if="foldedCount > 0"
+            class="text-center py-2 mb-2"
+          >
+            <button
+              class="text-[11px] text-text-3 border border-dashed border-border-strong rounded-full px-3 py-1 hover:text-primary hover:border-primary transition-colors cursor-pointer"
+              @click="expandMessages"
+            >
+              🔺 更早的 {{ foldedCount }} 条消息已折叠 · 点击展开
+            </button>
+          </div>
           <MessageBubble
-            v-for="(m, i) in messages"
+            v-for="(m, i) in displayMessages"
             :key="i"
             :msg="m"
-            :streaming="!!streaming && m.role === 'assistant' && i === messages.length - 1"
+            :streaming="!!streaming && m.role === 'assistant' && i === displayMessages.length - 1"
           />
         </div>
 

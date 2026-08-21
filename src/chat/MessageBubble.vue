@@ -10,9 +10,26 @@ import { ChatMessage } from '../shared/types'
 const props = defineProps<{ msg: ChatMessage; streaming?: boolean }>()
 const el = ref<HTMLElement | null>(null)
 
+/** 超长回复渲染保护：默认只渲染前 2 万字符，避免超大 DOM 拖慢对话窗 */
+const LONG_LIMIT = 20000
+const expanded = ref(false)
+const isLong = computed(() => props.msg.content.length > LONG_LIMIT)
+
+const rendered = computed(() => {
+  const c = props.msg.content
+  if (isLong.value && !expanded.value) {
+    return c.slice(0, LONG_LIMIT) + '\n\n> …（内容过长已截断，点击「展开全部」查看全文）'
+  }
+  return c
+})
+
 const html = computed(() =>
-  props.msg.role === 'assistant' ? renderMarkdown(props.msg.content) : '',
+  props.msg.role === 'assistant' ? renderMarkdown(rendered.value) : '',
 )
+
+function expandAll() {
+  expanded.value = true
+}
 
 function enhanceCodeBlocks() {
   if (!el.value) return
@@ -79,7 +96,14 @@ const copied = ref(false)
         <div v-if="msg.role === 'assistant'" ref="el" class="md" v-html="html"></div>
         <div v-else class="whitespace-pre-wrap">{{ msg.content }}</div>
       </div>
-      <div v-if="msg.role === 'assistant' && msg.content" class="mt-1 flex justify-end">
+      <div class="mt-1 flex justify-end gap-1">
+        <button
+          v-if="isLong && !expanded"
+          class="border-none bg-transparent text-[10px] text-text-3 px-1 rounded hover:bg-hover hover:text-primary transition-colors cursor-pointer"
+          @click="expandAll"
+        >
+          展开全部
+        </button>
         <button
           class="border-none bg-transparent text-[10px] text-text-3 px-1 rounded hover:bg-hover hover:text-primary transition-colors cursor-pointer"
           @click="copyMsg"

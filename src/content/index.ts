@@ -17,8 +17,9 @@ import {
   TranslatePayload,
   WindowRect,
 } from '../shared/types'
-import { getSettings } from '../shared/storage'
+import { getActiveConfig, getSettings } from '../shared/storage'
 import { logger } from '../shared/logger'
+import { applyContextBudget, DEFAULT_CONTEXT_MAX_TOKENS } from '../shared/context'
 import {
   CHAT_IFRAME_URL,
   CTX_KEY_PREFIX,
@@ -57,6 +58,8 @@ let fullscreen = false
 let chatLoaded = false
 let translateLoaded = false
 let ctxCache: { ts: number; ctx: PageContext } | null = null
+/** 宿主侧上下文预算（P0-2）：按当前生效模型的 maxTokens 提前截断 */
+let ctxMaxTokens = DEFAULT_CONTEXT_MAX_TOKENS
 let lastUrl = location.href
 let translatePayload: TranslatePayload | null = null
 let translateVisible = false
@@ -83,10 +86,18 @@ function pluginActive(): boolean {
 
 async function init() {
   settings = await getSettings()
+  await refreshCtxBudget()
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area === 'local' && changes.settings?.newValue) {
       settings = { ...settings, ...changes.settings.newValue }
       applyState()
+    }
+    // 模型配置变化 → 刷新宿主侧上下文预算
+    if (
+      area === 'local' &&
+      (changes.modelConfigs?.newValue || changes.activeConfigId?.newValue)
+    ) {
+      void refreshCtxBudget()
     }
   })
   chrome.runtime.onMessage.addListener(onRuntimeMessage)
@@ -505,18 +516,32 @@ async function handleGetContext() {
 }
 
 function getCtx(): PageContext {
-  if (ctxCache && Date.now() - ctxCache.ts < 5000) {
+  if (ctxCache && Date.now() - ctxCache.ts < 30000) {
     logger.debug('host', '页面上下文命中缓存')
     return ctxCache.ctx
   }
   const start = Date.now()
-  const ctx = extractPage()
+  let ctx = extractPage()
+  // P0-2：宿主侧提前按模型预算截断，避免全量上下文跨进程传输
+  ctx = applyContextBudget(ctx, ctxMaxTokens)
   ctxCache = { ts: Date.now(), ctx }
   logger.debug('host', `页面上下文提取耗时 ${Date.now() - start}ms`, {
     title: ctx.title,
     textLen: ctx.text.length,
+    truncated: ctx.truncated,
   })
   return ctx
+}
+
+/** 刷新宿主侧上下文预算（读取当前生效模型的 maxTokens） */
+async function refreshCtxBudget() {
+  try {
+    const cfg = await getActiveConfig()
+    ctxMaxTokens = cfg?.maxTokens || DEFAULT_CONTEXT_MAX_TOKENS
+    logger.debug('host', '上下文预算已刷新', { maxTokens: ctxMaxTokens })
+  } catch {
+    ctxMaxTokens = DEFAULT_CONTEXT_MAX_TOKENS
+  }
 }
 
 /* ---------------- 划词翻译 ---------------- */
@@ -549,6 +574,7 @@ function getContainingParagraph(range: Range): string {
 }
 
 function onMouseUp(e: MouseEvent) {
+  if (document.hidden) return // 后台标签页不处理划词，降低资源占用
   if (!settings.globalEnabled || !settings.translateEnabled) return
   if (siteDisabled()) return
   // 点击我们的宿主元素（shadow DOM 事件会重定向到 hostEl）

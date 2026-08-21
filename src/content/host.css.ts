@@ -40,8 +40,7 @@ export const HOST_STYLE = `
 }
 #translate {
   position: fixed;
-  width: 320px;
-  max-height: 62vh;
+  width: 340px;
   z-index: 2147483646;
   border-radius: 10px;
   overflow: hidden;

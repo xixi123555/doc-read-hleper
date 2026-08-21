@@ -19,7 +19,8 @@ import {
   SYSTEM_PROMPT,
 } from '../src/shared/prompts'
 import { PRESETS, createConfigFromPreset, presetById } from '../src/shared/presets'
-import { isConfigComplete } from '../src/shared/storage'
+import { isConfigComplete, QUOTA_LIMITS } from '../src/shared/storage'
+import { applyContextBudget, DEFAULT_CONTEXT_MAX_TOKENS, resolveContextChars } from '../src/shared/context'
 import { buildExportDoc, buildFilename, EXPORT_TARGETS } from '../src/chat/exporters'
 import { renderMarkdown } from '../src/chat/markdown'
 
@@ -152,6 +153,33 @@ ok('配置不完整：无密钥且未勾选免密', () => {
 ok('配置不完整：null/空', () => {
   assert.equal(isConfigComplete(null), false)
   assert.equal(isConfigComplete(undefined), false)
+})
+
+console.log('== shared/context.ts（P0-2） ==')
+ok('resolveContextChars 随 maxTokens 增长且有下限', () => {
+  assert.ok(resolveContextChars(4096) >= 1500)
+  assert.ok(resolveContextChars(16384) > resolveContextChars(4096))
+})
+ok('applyContextBudget 超预算截断并标记', () => {
+  const ctx = { title: 'T', url: 'u', lang: 'en', wordCount: 1, outline: [], codeBlocks: [], text: 'a'.repeat(100000), truncated: false }
+  const r = applyContextBudget(ctx, 4096)
+  assert.equal(r.truncated, true)
+  assert.ok(r.text.length < 100000)
+})
+ok('applyContextBudget 未超预算原样返回', () => {
+  const ctx = { title: 'T', url: 'u', lang: 'en', wordCount: 1, outline: [], codeBlocks: [], text: 'short', truncated: false }
+  const r = applyContextBudget(ctx, 4096)
+  assert.equal(r.truncated, false)
+  assert.equal(r.text, 'short')
+})
+ok('默认上下文预算常量', () => {
+  assert.equal(DEFAULT_CONTEXT_MAX_TOKENS, 8192)
+})
+
+console.log('== storage QUOTA_LIMITS（P1-2） ==')
+ok('配额常量存在且为正值', () => {
+  assert.ok(QUOTA_LIMITS.maxSessionsPerDomain > 0)
+  assert.ok(QUOTA_LIMITS.maxMessagesPerSession >= 100)
 })
 
 console.log('== presets.ts ==')

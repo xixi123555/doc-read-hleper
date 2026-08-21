@@ -156,6 +156,7 @@ onMounted(async () => {
 onBeforeUnmount(() => {
   window.clearTimeout(toastTimer)
   window.clearTimeout(saveTimer)
+  window.clearTimeout(chunkTimer)
   try {
     port?.disconnect()
   } catch {
@@ -421,13 +422,45 @@ async function postToBackground(msg: any): Promise<boolean> {
   }
 }
 
-function onPortMessage(msg: any) {
-  if (msg.type === 'llm-chunk' && streaming.value?.id === msg.id) {
-    streaming.value.buffer += msg.delta || ''
+/** 流式渲染节流：合并 chunk，40ms 批量刷新 */
+let chunkTimer: number | undefined
+let pendingDelta = ''
+
+function flushPendingDelta() {
+  if (chunkTimer) {
+    window.clearTimeout(chunkTimer)
+    chunkTimer = undefined
+  }
+  if (pendingDelta && streaming.value) {
+    streaming.value.buffer += pendingDelta
+    pendingDelta = ''
+    const last = messages.value[messages.value.length - 1]
+    if (last) last.content = streaming.value.buffer
+  }
+}
+
+function scheduleChunkFlush() {
+  if (chunkTimer) return
+  chunkTimer = window.setTimeout(() => {
+    chunkTimer = undefined
+    if (!streaming.value) {
+      pendingDelta = ''
+      return
+    }
+    streaming.value.buffer += pendingDelta
+    pendingDelta = ''
     const last = messages.value[messages.value.length - 1]
     if (last) last.content = streaming.value.buffer
     scrollBottom()
+  }, 40)
+}
+
+function onPortMessage(msg: any) {
+  if (msg.type === 'llm-chunk' && streaming.value?.id === msg.id) {
+    pendingDelta += msg.delta || ''
+    scheduleChunkFlush()
   } else if (msg.type === 'llm-done' && streaming.value?.id === msg.id) {
+    flushPendingDelta()
     const last = messages.value[messages.value.length - 1]
     if (last) {
       if (msg.content) last.content = msg.content
@@ -436,6 +469,7 @@ function onPortMessage(msg: any) {
     streaming.value = null
     saveSoon()
   } else if (msg.type === 'llm-error' && streaming.value?.id === msg.id) {
+    flushPendingDelta()
     const last = messages.value[messages.value.length - 1]
     if (last) {
       last.content =
@@ -498,7 +532,7 @@ async function send(text?: string) {
   streaming.value = { id, buffer: '' }
   scrollBottom()
   const ctx = pageContext.value || (await fetchContext())
-  const history = messages.value.slice(0, -2).map((m) => ({ role: m.role, content: m.content }))
+  const history = messages.value.slice(0, -2).map((m) => ({ role: m.role, content: m.content })).slice(-12)
   const ok = await postToBackground({
     type: 'llm-chat',
     payload: { id, messages: [...history, { role: 'user', content }], pageContext: ctx },
@@ -514,6 +548,7 @@ async function send(text?: string) {
 
 function stop() {
   if (!streaming.value) return
+  flushPendingDelta()
   void postToBackground({ type: 'abort', id: streaming.value.id })
   const last = messages.value[messages.value.length - 1]
   if (last) last.content += '\n\n*（已停止生成）*'

@@ -221,28 +221,8 @@ export async function validateConfig(
   }
 }
 
-/** 粗略 token 估算：ASCII 每 4 字符 1 token，CJK 每 1.5 字符 1 token */
-export function estimateTokens(text: string): number {
-  let ascii = 0
-  let cjk = 0
-  for (const ch of text) {
-    const code = ch.codePointAt(0)!
-    if (code < 128) ascii++
-    else if (code >= 0x4e00 && code <= 0x9fff) cjk++
-    else cjk++
-  }
-  return Math.ceil(ascii / 4) + Math.ceil(cjk / 1.5)
-}
-
-/**
- * 依据模型 maxTokens 预算裁剪页面正文。
- * 预算 = maxTokens，预留回复 800 token，正文约占剩余 80%。
- */
-export function truncateContextText(text: string, maxTokens: number): { text: string; truncated: boolean } {
-  const budgetChars = Math.max(1500, (maxTokens - 800) * 3 * 0.8)
-  if (text.length <= budgetChars) return { text, truncated: false }
-  return { text: text.slice(0, Math.floor(budgetChars)), truncated: true }
-}
+/** 兼容导出：token 估算与上下文截断已迁移至 shared/context（多端共用） */
+export { estimateTokens, truncateContextText } from '../shared/context'
 
 /** 兼容模型输出中包裹 markdown 代码块的 JSON 解析 */
 export function parseLooseJson(raw: string): any {

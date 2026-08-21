@@ -82,6 +82,8 @@ npm test             # 运行冒烟测试（可选）
 ## 架构与安全设计
 
 - **MV3**：Service Worker（ESM）+ Content Script（IIFE 注入隔离世界）+ 扩展页面 iframe，无远程代码
+- **Agent 化后台**：AI 能力收敛为 `AgentRuntime`（智能体门面，状态机 + ToolLoop），按「能力 Capability / 模型服务商 Provider / 工具 Tool / 技能 Skill」四层注册表可插拔；
+  Provider 适配层（OpenAI 兼容已落地，Anthropic 预留）、Tools（function calling 预留，含 `get_page_context` 示例）、Skills（内置技术文档阅读/总结/翻译/代码解析，可运行时加载技能包）、MCP（`MCPManager` 接口骨架，工具经 Adapter→Registry 桥接注入）；消息路由 `MessageRouter` + `PortHub`，协议向后兼容
 - **不污染页面**：对话窗 / 翻译窗均为独立扩展页面 iframe，置于 Shadow DOM 容器中，样式完全隔离
 - **消息链路**：
   - 对话/总结流式：chat iframe ↔ Service Worker 长连接端口（扩展内部信道，逐 token 推送）
@@ -94,7 +96,10 @@ npm test             # 运行冒烟测试（可选）
 - **日志可插拔架构**：`src/shared/logger.ts` 输出渠道注册表（`console` 控制台已落地；`page` 页面浮层、
   `server` 上报服务器为预留拓展点），`setSinkEnabled(id, on)` 可按渠道开关，互不影响；日志带
   `[chat]` / `[host]` / `[bg]` 作用域标签，方便定位问题（如页面上下文提取、消息链路）
-- **资源轻量化**：插件闲置时不注入任何 DOM、不轮询、不抓取（上下文仅在提问/翻译时按需提取，耗时 ≤300ms）
+- **资源轻量化**：插件闲置时不注入任何 DOM、不轮询、不抓取（上下文仅在提问/翻译时按需提取）
+- **防崩溃加固**：网页提取带安全预算（节点数 6 万 / 深度 300 超限走轻量路径，轻量路径带 24ms 时间盒，
+  全文统一 textContent）；上下文在宿主侧按模型预算提前截断（避免全量跨进程传输）；流式渲染 40ms 节流合并 +
+  长回复/长列表上限；存储写入统一容错 + 会话/消息配额，最大限度避免标签页卡死、内存膨胀与写入异常
 
 ## 快捷键（默认）
 
@@ -114,6 +119,10 @@ npm test             # 运行冒烟测试（可选）
 - **校验接口失败**：检查接口地址/模型名/密钥，本地模型请确认服务已启动且地址可达
 - **对话没有页面上下文**：请确认已打开对话窗后提问（上下文在提问时自动提取刷新）
 - **划词翻译不触发**：确认弹窗内已开启「划词翻译」且当前页面未被单独禁用
+
+## 架构重构方案
+
+面向 Agent 化的完整重构方案（Tools / Skills / MCP 扩展点、设计模式对照、迁移路线图）见 [`docs/REFACTORING.md`](docs/REFACTORING.md)。
 
 ## 许可
 
