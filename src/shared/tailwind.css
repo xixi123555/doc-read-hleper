@@ -1,0 +1,30 @@
+/**
+ * Tailwind CSS v4 入口（CSS-first 配置）
+ * 主题令牌映射到 src/shared/theme.css 的 CSS 变量，深浅色切换时自动生效。
+ */
+@import 'tailwindcss';
+
+/* 深色变体跟随 data-theme="dark"（与全局主题变量一致） */
+@custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
+
+@theme {
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-soft: var(--primary-soft);
+  --color-bg: var(--bg);
+  --color-bg-soft: var(--bg-soft);
+  --color-card: var(--card);
+  --color-card-soft: var(--card-soft);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-text: var(--text);
+  --color-text-2: var(--text-2);
+  --color-text-3: var(--text-3);
+  --color-success: var(--success);
+  --color-danger: var(--danger);
+  --color-warning: var(--warning);
+  --color-user-bubble: var(--user-bubble);
+  --color-ai-bubble: var(--ai-bubble);
+  --color-hover: var(--hover);
+  --color-code-bg: var(--code-bg);
+}

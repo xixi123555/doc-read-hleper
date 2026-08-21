@@ -1,0 +1,147 @@
+/* Chat 对话窗样式：消息区 / 快捷指令 / 输入区 / 代码块 / markdown 内容 */
+
+/* ---- markdown 内容排版 ---- */
+.md {
+  word-break: break-word;
+}
+.md h1,
+.md h2,
+.md h3,
+.md h4 {
+  margin: 10px 0 6px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+.md h1 { font-size: 15px; }
+.md h2 { font-size: 14px; }
+.md h3 { font-size: 13px; }
+.md p {
+  margin: 6px 0;
+}
+.md ul,
+.md ol {
+  margin: 6px 0;
+  padding-left: 20px;
+}
+.md li {
+  margin: 3px 0;
+}
+.md a {
+  color: var(--primary);
+  text-decoration: none;
+}
+.md a:hover {
+  text-decoration: underline;
+}
+.md blockquote {
+  margin: 6px 0;
+  padding: 4px 10px;
+  border-left: 3px solid var(--primary);
+  background: var(--card-soft);
+  border-radius: 0 6px 6px 0;
+  color: var(--text-2);
+}
+.md table {
+  border-collapse: collapse;
+  margin: 8px 0;
+  width: 100%;
+  font-size: 12px;
+}
+.md th,
+.md td {
+  border: 1px solid var(--border);
+  padding: 5px 8px;
+  text-align: left;
+}
+.md th {
+  background: var(--bg-soft);
+  font-weight: 600;
+}
+.md code:not(pre code) {
+  background: var(--bg-soft);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+}
+.md hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 10px 0;
+}
+
+/* ---- 代码块 ---- */
+.code-block {
+  margin: 8px 0;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--code-bg);
+}
+.code-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 10px;
+  background: rgba(255, 255, 255, 0.05);
+}
+.code-lang {
+  font-size: 11px;
+  color: #94a3b8;
+  font-family: ui-monospace, Menlo, monospace;
+}
+.code-copy {
+  border: none;
+  background: rgba(255, 255, 255, 0.1);
+  color: #cbd5e1;
+  font-size: 11px;
+  border-radius: 5px;
+  padding: 2px 8px;
+  cursor: pointer;
+}
+.code-copy:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+.code-block pre {
+  margin: 0;
+  padding: 10px 12px;
+  overflow-x: auto;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.55;
+}
+.code-block pre code {
+  background: transparent;
+  border: none;
+  padding: 0;
+  color: var(--code-text);
+}
+
+/* highlight.js 精简配色（适配深浅色） */
+.hljs-comment,
+.hljs-quote { color: #8b95a9; font-style: italic; }
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-literal,
+.hljs-doctag { color: #c792ea; }
+.hljs-string,
+.hljs-regexp,
+.hljs-addition { color: #a5e075; }
+.hljs-number,
+.hljs-symbol,
+.hljs-bullet { color: #ffcb6b; }
+.hljs-title,
+.hljs-title.function_,
+.hljs-section { color: #82aaff; }
+.hljs-attr,
+.hljs-attribute,
+.hljs-variable,
+.hljs-template-variable { color: #f78c6c; }
+.hljs-type,
+.hljs-built_in,
+.hljs-builtin-name { color: #ffcb6b; }
+.hljs-params { color: #e2e8f0; }
+.hljs-meta { color: #89ddff; }
+.hljs-emphasis { font-style: italic; }
+.hljs-strong { font-weight: 700; }

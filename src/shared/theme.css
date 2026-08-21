@@ -1,0 +1,103 @@
+/* ===== 全局主题变量（现代简约风 · 低饱和科技蓝） ===== */
+
+:root,
+:root[data-theme='light'] {
+  --bg: #f6f8fb;
+  --bg-soft: #eef2f8;
+  --card: #ffffff;
+  --card-soft: #f8fafc;
+  --border: #e5e9f2;
+  --border-strong: #d4dbe8;
+  --text: #1f2937;
+  --text-2: #4b5563;
+  --text-3: #9ca3af;
+  --primary: #4a7dff;
+  --primary-hover: #6a93ff;
+  --primary-soft: #eaf0ff;
+  --success: #34c77b;
+  --danger: #f2715c;
+  --warning: #f0a63b;
+  --user-bubble: #eaf0ff;
+  --ai-bubble: #f3f5f9;
+  --hover: rgba(74, 125, 255, 0.08);
+  --shadow: 0 4px 16px rgba(15, 23, 42, 0.08);
+  --shadow-lg: 0 10px 40px rgba(15, 23, 42, 0.16);
+  --code-bg: #0f172a;
+  --code-text: #e2e8f0;
+  color-scheme: light;
+}
+
+:root[data-theme='dark'] {
+  --bg: #161a22;
+  --bg-soft: #1d222d;
+  --card: #1d222d;
+  --card-soft: #232a37;
+  --border: #2a313f;
+  --border-strong: #38415a;
+  --text: #e7ebf3;
+  --text-2: #a9b2c3;
+  --text-3: #6b7488;
+  --primary: #6e9bff;
+  --primary-hover: #8ab0ff;
+  --primary-soft: rgba(110, 155, 255, 0.16);
+  --success: #3ed98b;
+  --danger: #f57e6b;
+  --warning: #f5b453;
+  --user-bubble: rgba(110, 155, 255, 0.18);
+  --ai-bubble: #232a37;
+  --hover: rgba(110, 155, 255, 0.12);
+  --shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+  --shadow-lg: 0 10px 40px rgba(0, 0, 0, 0.5);
+  --code-bg: #0d1117;
+  --code-text: #e2e8f0;
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  font-family:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB',
+    'Microsoft YaHei', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+  font-size: 13px;
+}
+
+/* 轻量化滚动条 */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-3);
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+button {
+  font-family: inherit;
+}
+
+/* 轻量淡入动效（弹窗/Toast） */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}

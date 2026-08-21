@@ -1,0 +1,57 @@
+{
+  "manifest_version": 3,
+  "name": "AI 网页阅读助手",
+  "version": "1.0.0",
+  "description": "网页智能解析 + AI 对话辅助：技术文档阅读、代码解读、划词翻译、对话总结导出。支持自定义任意 OpenAI 兼容大模型。",
+  "minimum_chrome_version": "102",
+  "permissions": ["storage", "commands", "scripting"],
+  "host_permissions": ["<all_urls>"],
+  "background": {
+    "service_worker": "js/background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "AI 网页阅读助手",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "commands": {
+    "toggle-chat": {
+      "suggested_key": { "default": "Alt+Shift+R" },
+      "description": "打开 / 收起右侧对话窗"
+    },
+    "summarize-page": {
+      "suggested_key": { "default": "Alt+Shift+S" },
+      "description": "AI 总结当前页面"
+    },
+    "toggle-extension": {
+      "suggested_key": { "default": "Alt+Shift+X" },
+      "description": "全局开关插件"
+    }
+  },
+  "content_scripts": [
+    {
+      "matches": ["http://*/*", "https://*/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle",
+      "all_frames": false
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["chat.html", "translate.html", "js/*", "assets/*"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}
