@@ -37,8 +37,8 @@ const EXT_ORIGIN = chrome.runtime.getURL('').replace(/\/$/, '')
 let settings: AppSettings = {
   globalEnabled: true,
   disabledSites: [],
-  translateEnabled: false,
-  theme: 'light',
+  translateEnabled: true,
+  theme: 'auto',
 }
 let tabId = 0
 /** 用于校验 iframe 消息来源（页面无法得知该随机值） */

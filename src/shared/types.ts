@@ -101,7 +101,7 @@ export interface AppSettings {
   globalEnabled: boolean
   /** 单独禁用的网站（hostname 列表） */
   disabledSites: string[]
-  /** 划词翻译功能开关（默认关闭） */
+  /** 划词翻译功能开关（默认开启） */
   translateEnabled: boolean
   /** 主题模式 */
   theme: ThemeMode
@@ -119,8 +119,8 @@ export interface LLMChatMessage {
 export const DEFAULT_SETTINGS: AppSettings = {
   globalEnabled: true,
   disabledSites: [],
-  translateEnabled: false,
-  theme: 'light',
+  translateEnabled: true,
+  theme: 'auto',
 }
 
 /** 划词翻译中需要带上的“网页上下文片段” */

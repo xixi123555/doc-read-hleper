@@ -128,9 +128,9 @@ async function sendToActiveTab(message: any) {
 /* ---------------- 初始化 ---------------- */
 
 chrome.runtime.onInstalled.addListener(() => {
-  // 首次安装：写入默认设置（全局开关默认开启、划词翻译默认关闭）
+  // 首次安装：写入默认设置（全局开关默认开启、划词翻译默认开启、主题默认跟随系统）
   void STORAGE.getSettings().then(async (s) => {
-    if (!s) await STORAGE.setSettings({ globalEnabled: true, disabledSites: [], translateEnabled: false, theme: 'light' })
+    if (!s) await STORAGE.setSettings({ globalEnabled: true, disabledSites: [], translateEnabled: true, theme: 'auto' })
   })
 })
 

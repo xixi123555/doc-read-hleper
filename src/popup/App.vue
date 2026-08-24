@@ -71,8 +71,8 @@ const checking = ref(true)
 const settings = reactive<AppSettings>({
   globalEnabled: true,
   disabledSites: [],
-  translateEnabled: false,
-  theme: 'light',
+  translateEnabled: true,
+  theme: 'auto',
 })
 
 const configs = ref<ModelConfig[]>([])
