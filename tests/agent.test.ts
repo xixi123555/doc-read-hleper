@@ -240,4 +240,13 @@ await ok('中止：abort(id) 后流以取消错误中断', async () => {
   assert.ok(rejected, '应当以取消错误结束')
 })
 
+await ok('内置技能注册表：默认启用集含 tech-doc-reading，其余可插拔注册', () => {
+  const skills = new SkillRegistry()
+  loadBuiltinSkills(skills)
+  assert.ok(skills.get('tech-doc-reading'), '技术文档阅读技能应存在')
+  assert.ok(skills.get('summarizer'), '总结技能应存在')
+  assert.ok(!skills.get('release-notes'), 'release-notes 技能已移除')
+  assert.ok(skills.get('code-analyst'), '代码解析技能应存在')
+})
+
 console.log(`\n全部通过：${passed} 项 ✅`)

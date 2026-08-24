@@ -10,15 +10,15 @@ export default defineConfig({
     target: 'es2020',
     sourcemap: false,
     minify: 'esbuild',
-    lib: {
-      entry: resolve(__dirname, 'src/content/index.ts'),
-      name: 'AIReaderContent',
-      formats: ['iife'],
-      fileName: () => 'content.js',
-    },
     rollupOptions: {
+      input: {
+        content: resolve(__dirname, 'src/content/index.ts'),
+      },
       output: {
-        assetFileNames: 'assets/[name][extname]',
+        // 产物带内容指纹（manifest 由 postbuild 按实际文件名重写）
+        entryFileNames: 'js/content-[hash].js',
+        format: 'iife',
+        assetFileNames: 'assets/[name]-[hash][extname]',
       },
     },
   },

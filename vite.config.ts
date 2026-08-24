@@ -23,9 +23,10 @@ export default defineConfig({
         background: resolve(__dirname, 'src/background/index.ts'),
       },
       output: {
-        entryFileNames: 'js/[name].js',
+        // 所有编译产物（入口 JS / 共享 chunk / CSS 等资源）均带内容指纹
+        entryFileNames: 'js/[name]-[hash].js',
         chunkFileNames: 'js/[name]-[hash].js',
-        assetFileNames: 'assets/[name][extname]',
+        assetFileNames: 'assets/[name]-[hash][extname]',
       },
     },
   },

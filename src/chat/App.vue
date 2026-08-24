@@ -779,7 +779,7 @@ function expandMessages() {
             <textarea
               v-model="inputText"
               rows="2"
-              placeholder="输入你的问题，Enter 发送，Shift+Enter 换行…"
+              placeholder="问任何关于当前网页的问题，Enter 发送，Shift+Enter 换行…"
               class="flex-1 resize-none rounded-xl border border-border bg-bg text-text text-[12.5px] leading-relaxed px-2.5 py-1.5 outline-none focus:border-primary focus:ring-2 focus:ring-primary-soft max-h-[120px]"
               @keydown="onInputKeydown"
             ></textarea>
