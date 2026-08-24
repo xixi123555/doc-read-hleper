@@ -1,13 +1,13 @@
 {
   "name": "ai-web-reading-assistant",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "private": true,
   "description": "Chrome AI 网页阅读助手：网页智能解析 + AI 对话辅助 + 划词翻译 + 对话总结导出（Chrome Extension MV3 / Vue3 / Naive UI）",
   "type": "module",
   "scripts": {
     "icons": "node scripts/gen-icons.mjs",
     "build": "node scripts/gen-icons.mjs && vite build && vite build --config vite.content.config.ts && node scripts/postbuild.mjs && node scripts/release.mjs",
-    "release:judge": "node scripts/llm-bump.mjs",
+    "release:judge": "node scripts/llm-release.mjs",
     "test": "tsx tests/smoke.test.ts && tsx tests/llm-stream.test.ts && tsx tests/logger.test.ts && tsx tests/agent.test.ts && tsx tests/port.test.ts && node tests/release.test.mjs",
     "build:main": "vite build",
     "build:content": "vite build --config vite.content.config.ts",

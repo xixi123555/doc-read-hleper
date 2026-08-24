@@ -3,7 +3,7 @@
  * 运行：node tests/release.test.mjs
  */
 import assert from 'node:assert'
-import { mkdtempSync, writeFileSync, mkdirSync, rmSync } from 'node:fs'
+import { mkdtempSync, readFileSync, writeFileSync, mkdirSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
@@ -13,7 +13,18 @@ import {
   parseVersion,
   uniqueVersion,
 } from '../scripts/release-lib.mjs'
-import { chatUrl, parseBumpJson, parseDotEnv, resolveModelConfig } from '../scripts/llm-bump.mjs'
+import {
+  appendUpdateFile,
+  chatUrl,
+  fallbackChangelog,
+  localDateString,
+  parseBumpJson,
+  parseDotEnv,
+  parseJsonObject,
+  renderTechDoc,
+  renderUpdateEntry,
+  resolveModelConfig,
+} from '../scripts/llm-release.mjs'
 
 let passed = 0
 function ok(name, fn) {
@@ -153,6 +164,50 @@ ok('缺少 baseUrl / model → null', () => {
 ok('chatUrl 规范化（去尾部斜杠、不自动补 /v1）', () => {
   assert.equal(chatUrl('https://api.deepseek.com/'), 'https://api.deepseek.com/chat/completions')
   assert.equal(chatUrl('https://api.deepseek.com/v1'), 'https://api.deepseek.com/v1/chat/completions')
+})
+
+console.log('== parseJsonObject（通用 JSON 提取） ==')
+ok('提取被文本包裹的 JSON', () => {
+  const obj = parseJsonObject('以下是结果：\n```json\n{"tech":"a","product":"b"}\n```\n完毕')
+  assert.deepEqual(obj, { tech: 'a', product: 'b' })
+})
+ok('非 JSON 抛错', () => {
+  assert.throws(() => parseJsonObject('抱歉，无法生成'))
+})
+
+console.log('== 变更文档渲染 / 追加 ==')
+ok('localDateString 格式 YYYY-MM-DD', () => {
+  assert.match(localDateString(new Date(2026, 7, 24)), /^\d{4}-\d{2}-\d{2}$/)
+})
+ok('renderTechDoc 含版本与正文', () => {
+  const doc = renderTechDoc({ version: '1.2.0', body: '- 新增模块 X', date: '2026-08-24' })
+  assert.ok(doc.includes('# v1.2.0 · 2026-08-24'))
+  assert.ok(doc.includes('- 新增模块 X'))
+})
+ok('renderUpdateEntry 含版本与日期标题', () => {
+  const entry = renderUpdateEntry({ version: '1.2.0', body: '- 新增划词提问', date: '2026-08-24' })
+  assert.ok(entry.startsWith('## v1.2.0 · 2026-08-24'))
+  assert.ok(entry.includes('- 新增划词提问'))
+})
+ok('appendUpdateFile：新文件写入标题头，再次追加不重复标题', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'upd-'))
+  const file = join(dir, 'update.md')
+  try {
+    appendUpdateFile(file, renderUpdateEntry({ version: '1.2.0', body: '- A', date: '2026-08-24' }))
+    appendUpdateFile(file, renderUpdateEntry({ version: '1.2.1', body: '- B', date: '2026-08-25' }))
+    const text = readFileSync(file, 'utf-8')
+    assert.equal(text.match(/# 产品更新日志/g).length, 1, '标题头只出现一次')
+    assert.ok(text.indexOf('## v1.2.0') < text.indexOf('## v1.2.1'), '按时间正序追加')
+    assert.ok(text.includes('- A') && text.includes('- B'))
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+ok('fallbackChangelog 兜底含版本与递增级别', () => {
+  const fb = fallbackChangelog({ version: '1.2.0', bump: 'minor', diff: { shortstat: '3 files changed', log: 'abc feat: x' } })
+  assert.ok(fb.tech.includes('minor'))
+  assert.ok(fb.tech.includes('abc feat: x'))
+  assert.ok(fb.product.includes('新增功能'))
 })
 
 console.log(`\n全部通过：${passed} 项 ✅`)

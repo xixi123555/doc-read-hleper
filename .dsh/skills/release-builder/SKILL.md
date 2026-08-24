@@ -5,7 +5,7 @@ description: 'Use when asked to build, package, or release this project ("打包
 
 # AI 网页阅读助手 · 版本发布打包（Release Builder）
 
-生成 `releases/ai-web-reading-assistant-v<版本号>.zip` 的自动化工作流。产物与规则由本项目脚本落地，本技能定义**何时用、怎么选版本、如何验证**，避免凭感觉出包或重复出包。
+生成 `releases/ai-web-reading-assistant-v<版本号>/`（内含 zip + 技术向变更文档）与 `releases/update.md`（产品向更新日志）的自动化工作流。产物与规则由本项目脚本落地，本技能定义**何时用、怎么选版本、如何验证**，避免凭感觉出包或重复出包。
 
 ## 何时使用
 
@@ -20,9 +20,12 @@ description: 'Use when asked to build, package, or release this project ("打包
   - `vite build`：主页面 + 后台（**所有编译产物带内容指纹** `js/[name]-[hash].js` / `assets/[name]-[hash][extname]`）；
   - `vite build --config vite.content.config.ts`：content script（IIFE，`js/content-[hash].js`）；
   - `scripts/postbuild.mjs`：拷贝图标/manifest，**按实际指纹重写 manifest** 的 `background.service_worker` 与 `content_scripts`，校验产物缺失即失败；
-  - `scripts/release.mjs`：指纹比对 → 版本递增 → 打 zip → 同步版本号。
+  - `scripts/release.mjs`：指纹比对 → 版本递增 → 版本目录 + zip → 变更文档 → 同步版本号。
 - 一键命令：`npm run build`（递增级别**默认由大模型依据 git 记录自动判定**，配置在 `.env`：`MODEL_BASE_URL` / `MODEL_API_KEY` / `MODEL_NAME`）；也可手动覆盖：`BUMP=minor npm run build`。
-- 大模型判定逻辑：`scripts/llm-bump.mjs`（`decideBump`）——以 `releases/version.json` 记录的上一版本 commit（无记录时用最新 `v*` 标签）为基线，收集到当前 HEAD 的 git 差异摘要，交由大模型判断 major / minor / patch；基线缺失或调用失败时兜底为 patch。
+- 大模型逻辑：`scripts/llm-release.mjs`（`decideBump` / `decideChangelog`）——以 `releases/version.json` 记录的上一版本 commit（无记录时用最新 `v*` 标签）为基线，收集到当前 HEAD 的 git 差异摘要，交由大模型判断 major / minor / patch，并生成两份变更文档：
+  - **技术向** → `releases/ai-web-reading-assistant-v<版本>/update_release_doc.md`（本次构建变更了哪些内容）；
+  - **产品向** → 追加到 `releases/update.md`（里程碑 / 时间 / 版本迭代内容，每次构建向文件末尾追加）。
+  - 基线缺失或大模型不可用 / 失败时：级别兜底 patch、文档用 git 摘要兜底，构建不中断。
 - 版本来源与规则：`scripts/release-lib.mjs`（`nextVersion` / `uniqueVersion` / `computeFingerprints`），状态记录在 `releases/version.json`（含 `commit` / `baselineCommit`，供下次差异对比）。
 
 ## 执行流程
@@ -58,13 +61,16 @@ BUMP=minor npm run build           # 手动覆盖：major | minor | patch
 ### 4. 核对产物（必须）
 
 ```sh
-ls -la releases/                          # 应出现 ai-web-reading-assistant-v<新版本>.zip
-cat releases/version.json                 # version / history（不得重复）/ fingerprints
+ls -la releases/                          # 应出现 ai-web-reading-assistant-v<新版本>/ 目录与 update.md
+ls -la releases/ai-web-reading-assistant-v<新版本>/   # zip + update_release_doc.md
+cat releases/update.md                    # 本次条目已追加（里程碑 / 时间 / 版本迭代内容）
+cat releases/version.json                 # version / history（不得重复）/ fingerprints / commit
 python3 -c "import json;print(json.load(open('dist/manifest.json'))['version'])"   # 版本已同步
 python3 -c "import json;print(json.load(open('package.json'))['version'])"
 ```
 
-- zip 文件名 = `ai-web-reading-assistant-v<版本>.zip`，根目录包含 `dist/` 目录；
+- 产物结构：`releases/ai-web-reading-assistant-v<版本>/` 目录内含 `ai-web-reading-assistant-v<版本>.zip`（根目录包含 `dist/`）与 `update_release_doc.md`（技术向变更说明）；
+- `releases/update.md`：产品向更新日志，每次构建向文件末尾追加一条（`## v<版本> · <日期>`）；
 - 版本号已同步到 `dist/manifest.json`、`public/manifest.json`、`package.json`。
 
 ## 三条硬规则（脚本已强制，复核输出确认）
@@ -77,8 +83,10 @@ python3 -c "import json;print(json.load(open('package.json'))['version'])"
 
 | 输出 | 含义 | 下一步 |
 |---|---|---|
-| `[release] 版本递增：1.0.0 → v1.0.1（patch）` + `✅ 已生成 releases/...zip` | 正常发布 | 按“核对产物”检查 |
+| `[release] 版本递增：1.0.0 → v1.0.1（patch）` + `📄 已生成 ...update_release_doc.md` + `✅ 已生成 releases/.../` | 正常发布 | 按“核对产物”检查 |
 | `[release] ℹ️ dist 无任何变动，跳过打包（版本保持 v1.0.0）` | 无代码变化 | 无需动作；若确实改了代码，先确认改动进了 dist（见下） |
+| `[release] 🤖 大模型判定递增级别：...` / `📄 已生成 ... 并追加 releases/update.md` | 大模型正常参与判定与文档生成 | 复核级别是否符合预期，不符可 `BUMP=...` 覆盖重跑 |
+| `[release] ⚠️ ... 按 patch 兜底` / `⚠️ ... 使用 git 摘要兜底` | 缺基线或大模型失败 | 为上一版本补标签 `git tag v<版本>`，或检查 `.env` 模型配置后重跑 |
 | `[postbuild] ❌ 缺少产物文件` | 构建不完整 | 检查源码/依赖，修复后重跑 |
 | `[release] ❌ zip 打包失败` | 系统无 `zip` 命令或磁盘问题 | 安装 zip 或清理 releases 后重跑 |
 
@@ -90,9 +98,11 @@ python3 -c "import json;print(json.load(open('package.json'))['version'])"
 
 ## 相关文件索引
 
-- `scripts/release.mjs` — 发布编排（指纹比对 / 版本递增 / zip / 版本同步 / 状态写入）
-- `scripts/llm-bump.mjs` — 大模型递增级别判定（`.env` 模型配置 / 基线定位 / git 差异摘要 / `decideBump`），可单独运行调试
+- `scripts/release.mjs` — 发布编排（指纹比对 / 版本递增 / 版本目录 + zip / 变更文档 / 版本同步 / 状态写入）
+- `scripts/llm-release.mjs` — 大模型判定与文档生成（`.env` 模型配置 / 基线定位 / git 差异摘要 / `decideBump` / `decideChangelog` / 兜底），可单独运行调试：`npm run release:judge`
 - `scripts/release-lib.mjs` — 纯逻辑（`nextVersion` / `uniqueVersion` / `computeFingerprints` / `fingerprintsEqual`）
 - `scripts/postbuild.mjs` — manifest 指纹重写与产物校验
 - `releases/version.json` — 发布状态（version / history / fingerprints / commit / baselineCommit），**不要手工编辑**（历史版本无 commit 记录时用 git 标签补基线）
-- `tests/release.test.mjs` — 发布逻辑单测（含大模型输出解析 / .env 解析）
+- `releases/update.md` — 产品向更新日志（里程碑 / 时间 / 版本迭代内容），脚本自动追加
+- `releases/ai-web-reading-assistant-v<版本>/` — 每次发布的目录：zip + `update_release_doc.md`（技术向）
+- `tests/release.test.mjs` — 发布逻辑单测（含大模型输出解析 / .env 解析 / 文档渲染与追加）

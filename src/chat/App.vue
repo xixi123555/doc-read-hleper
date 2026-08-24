@@ -593,9 +593,26 @@ async function refreshModel() {
 
 /* ---------------- 窗口控制 ---------------- */
 
+/**
+ * 浮窗模式拖拽交互：双击不松开才能拖动（符合大众交互）。
+ * 单击顶栏只记录按下位置/时间，不触发拖动；
+ * 仅在 500ms 内、6px 容差内的第二次按下（双击的第二下按住不放）才发送 DragStart。
+ */
+const DRAG_DBLCLICK_MS = 500
+const DRAG_DBLCLICK_DIST = 6
+let lastHeadPress = { x: -1, y: -1, t: 0 }
+
 function onHeadDragDown(e: MouseEvent) {
   if (isCollapsed.value || fullscreenLocal.value) return
   if ((e.target as HTMLElement).closest('button')) return
+  const now = Date.now()
+  const prev = lastHeadPress
+  lastHeadPress = { x: e.clientX, y: e.clientY, t: now }
+  const isSecondPressOfDoubleClick =
+    now - prev.t <= DRAG_DBLCLICK_MS &&
+    Math.abs(e.clientX - prev.x) <= DRAG_DBLCLICK_DIST &&
+    Math.abs(e.clientY - prev.y) <= DRAG_DBLCLICK_DIST
+  if (!isSecondPressOfDoubleClick) return
   postToHost({ type: PM.DragStart, nonce: nonce.value })
 }
 
@@ -695,7 +712,7 @@ function expandMessages() {
       <template v-else>
         <!-- 顶栏（拖拽区） -->
         <header
-          class="flex items-center justify-between gap-2 px-2.5 py-2 cursor-grab select-none border-b border-border bg-card shrink-0 active:cursor-grabbing"
+          class="flex items-center justify-between gap-2 px-2.5 py-2 cursor-grab select-none border-b border-border bg-card shrink-0"
           @mousedown="onHeadDragDown"
         >
           <div class="min-w-0 flex-1">
