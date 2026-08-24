@@ -21,8 +21,9 @@ description: 'Use when asked to build, package, or release this project ("打包
   - `vite build --config vite.content.config.ts`：content script（IIFE，`js/content-[hash].js`）；
   - `scripts/postbuild.mjs`：拷贝图标/manifest，**按实际指纹重写 manifest** 的 `background.service_worker` 与 `content_scripts`，校验产物缺失即失败；
   - `scripts/release.mjs`：指纹比对 → 版本递增 → 打 zip → 同步版本号。
-- 一键命令：`npm run build`（BUMP 默认 `patch`）；带级别：`BUMP=minor npm run build`。
-- 版本来源与规则：`scripts/release-lib.mjs`（`nextVersion` / `uniqueVersion` / `computeFingerprints`），状态记录在 `releases/version.json`。
+- 一键命令：`npm run build`（递增级别**默认由大模型依据 git 记录自动判定**，配置在 `.env`：`MODEL_BASE_URL` / `MODEL_API_KEY` / `MODEL_NAME`）；也可手动覆盖：`BUMP=minor npm run build`。
+- 大模型判定逻辑：`scripts/llm-bump.mjs`（`decideBump`）——以 `releases/version.json` 记录的上一版本 commit（无记录时用最新 `v*` 标签）为基线，收集到当前 HEAD 的 git 差异摘要，交由大模型判断 major / minor / patch；基线缺失或调用失败时兜底为 patch。
+- 版本来源与规则：`scripts/release-lib.mjs`（`nextVersion` / `uniqueVersion` / `computeFingerprints`），状态记录在 `releases/version.json`（含 `commit` / `baselineCommit`，供下次差异对比）。
 
 ## 执行流程
 
@@ -35,20 +36,23 @@ npm install                  # 依赖缺失时
 
 ### 2. 判定本次变动的规模，选择 BUMP（最重要的一步）
 
+默认情况下 `npm run build` 会**自动调用大模型**，依据「上一版本 commit → 当前 HEAD」的 git 差异（文件数 / 增删行 / 提交记录）判定递增级别。手动指定 `BUMP` 可覆盖自动判定：
+
 | 变更规模 | BUMP | 示例 |
 |---|---|---|
-| 重构 / 架构级大变动 | `major` | 后台 Agent 化重构、协议不兼容变更 → `2.0.0` |
+| 重构 / 架构级大变动 | `major` | 后台 Agent 化重构、协议不兼容变更、内容差异很大 → `2.0.0` |
 | 新模块 / 较大功能 | `minor` | 新增 MCP、技能面板、划词提问 → `1.1.0` |
-| 小优化 / 小 bug 修复 | `patch`（默认） | 文案、性能微调、缺陷修复 → `1.0.1` |
+| 小优化 / 小 bug 修复 | `patch`（自动判定兜底值） | 文案、性能微调、缺陷修复 → `1.0.1` |
 
 不确定时按“改动落进哪些文件、影响面多大”判断：改了后台/内容层主流程 = 至少 minor；只改文案/样式/单测 = patch。
+
+> 自动判定依赖“上一版本对应的 commit”：每次发布时 `release.mjs` 会把当前 commit 写入 `releases/version.json`。历史版本没有该记录时，可用标签补上：`git tag v1.1.1`。可单独调试判定：`npm run release:judge`。
 
 ### 3. 执行构建 + 发布
 
 ```sh
-BUMP=<major|minor|patch> npm run build
-# 例如小修复：npm run build          （默认 patch）
-# 例如新功能：BUMP=minor npm run build
+npm run build                      # 递增级别由大模型自动判定（推荐）
+BUMP=minor npm run build           # 手动覆盖：major | minor | patch
 ```
 
 ### 4. 核对产物（必须）
@@ -87,7 +91,8 @@ python3 -c "import json;print(json.load(open('package.json'))['version'])"
 ## 相关文件索引
 
 - `scripts/release.mjs` — 发布编排（指纹比对 / 版本递增 / zip / 版本同步 / 状态写入）
+- `scripts/llm-bump.mjs` — 大模型递增级别判定（`.env` 模型配置 / 基线定位 / git 差异摘要 / `decideBump`），可单独运行调试
 - `scripts/release-lib.mjs` — 纯逻辑（`nextVersion` / `uniqueVersion` / `computeFingerprints` / `fingerprintsEqual`）
 - `scripts/postbuild.mjs` — manifest 指纹重写与产物校验
-- `releases/version.json` — 发布状态（version / history / fingerprints），**不要手工编辑**
-- `tests/release.test.mjs` — 发布逻辑单测
+- `releases/version.json` — 发布状态（version / history / fingerprints / commit / baselineCommit），**不要手工编辑**（历史版本无 commit 记录时用 git 标签补基线）
+- `tests/release.test.mjs` — 发布逻辑单测（含大模型输出解析 / .env 解析）

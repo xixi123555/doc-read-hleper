@@ -13,6 +13,7 @@ import {
   parseVersion,
   uniqueVersion,
 } from '../scripts/release-lib.mjs'
+import { chatUrl, parseBumpJson, parseDotEnv, resolveModelConfig } from '../scripts/llm-bump.mjs'
 
 let passed = 0
 function ok(name, fn) {
@@ -100,6 +101,58 @@ ok('manifest.json 被排除在指纹外（版本号变动不触发重打包）',
     rmSync(d1, { recursive: true, force: true })
     rmSync(d2, { recursive: true, force: true })
   }
+})
+
+console.log('== parseBumpJson（大模型输出解析） ==')
+ok('标准 JSON', () => {
+  assert.deepEqual(parseBumpJson('{"bump":"minor","reason":"新增划词提问模块"}'), {
+    bump: 'minor',
+    reason: '新增划词提问模块',
+  })
+})
+ok('容忍 markdown 代码块与多余文本', () => {
+  const r = parseBumpJson('好的，结果如下：\n```json\n{"bump": "major", "reason": "整体重构"}\n```\n以上。')
+  assert.equal(r.bump, 'major')
+  assert.equal(r.reason, '整体重构')
+})
+ok('bump 大小写归一化', () => {
+  assert.equal(parseBumpJson('{"bump":"PATCH","reason":"修 bug"}').bump, 'patch')
+})
+ok('非法级别抛错', () => {
+  assert.throws(() => parseBumpJson('{"bump":"huge","reason":"x"}'))
+})
+ok('非 JSON 输出抛错', () => {
+  assert.throws(() => parseBumpJson('抱歉，我无法判断'))
+})
+
+console.log('== parseDotEnv / resolveModelConfig（.env 解析） ==')
+ok('解析带空格、引号、注释的 .env', () => {
+  const env = parseDotEnv([
+    '# 注释行',
+    '',
+    "MODEL_BASE_URL = 'https://api.deepseek.com'",
+    'MODEL_API_KEY="sk-test"',
+    'MODEL_NAME=deepseek-v4-flash',
+  ].join('\n'))
+  assert.equal(env.MODEL_BASE_URL, 'https://api.deepseek.com')
+  assert.equal(env.MODEL_API_KEY, 'sk-test')
+  assert.equal(env.MODEL_NAME, 'deepseek-v4-flash')
+})
+ok('配置完整 → 返回模型配置', () => {
+  const cfg = resolveModelConfig({
+    MODEL_BASE_URL: 'https://api.deepseek.com',
+    MODEL_API_KEY: 'sk-1',
+    MODEL_NAME: 'deepseek-v4-flash',
+  })
+  assert.equal(cfg.model, 'deepseek-v4-flash')
+})
+ok('缺少 baseUrl / model → null', () => {
+  assert.equal(resolveModelConfig({ MODEL_API_KEY: 'sk-1' }), null)
+  assert.equal(resolveModelConfig({ MODEL_BASE_URL: 'x', MODEL_NAME: '' }), null)
+})
+ok('chatUrl 规范化（去尾部斜杠、不自动补 /v1）', () => {
+  assert.equal(chatUrl('https://api.deepseek.com/'), 'https://api.deepseek.com/chat/completions')
+  assert.equal(chatUrl('https://api.deepseek.com/v1'), 'https://api.deepseek.com/v1/chat/completions')
 })
 
 console.log(`\n全部通过：${passed} 项 ✅`)
