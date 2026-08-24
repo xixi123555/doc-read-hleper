@@ -20,8 +20,8 @@ description: 'Use when asked to build, package, or release this project ("打包
   - `vite build`：主页面 + 后台（**所有编译产物带内容指纹** `js/[name]-[hash].js` / `assets/[name]-[hash][extname]`）；
   - `vite build --config vite.content.config.ts`：content script（IIFE，`js/content-[hash].js`）；
   - `scripts/postbuild.mjs`：拷贝图标/manifest，**按实际指纹重写 manifest** 的 `background.service_worker` 与 `content_scripts`，校验产物缺失即失败；
-  - `scripts/release.mjs`：指纹比对 → 版本递增 → 版本目录 + zip → 变更文档 → 同步版本号。
-- 一键命令：`npm run build`（递增级别**默认由大模型依据 git 记录自动判定**，配置在 `.env`：`MODEL_BASE_URL` / `MODEL_API_KEY` / `MODEL_NAME`）；也可手动覆盖：`BUMP=minor npm run build`。
+  - `scripts/release.mjs`：指纹比对 → 版本递增 → 版本目录 + zip → 变更文档 → 同步版本号 → **提交并推送所有本地变更到远程**（含 `package.json` / `public/manifest.json` 版本变更）。
+- 一键命令：`npm run build`（递增级别**默认由大模型依据 git 记录自动判定**，配置在 `.env`：`MODEL_BASE_URL` / `MODEL_API_KEY` / `MODEL_NAME`）；也可手动覆盖：`BUMP=minor npm run build`；出包后自动 `git commit` + `git push`（设置 `NO_PUSH=1` 可跳过，仅本地出包）。
 - 大模型逻辑：`scripts/llm-release.mjs`（`decideBump` / `decideChangelog`）——以 `releases/version.json` 记录的上一版本 commit（无记录时用最新 `v*` 标签）为基线，收集到当前 HEAD 的 git 差异摘要，交由大模型判断 major / minor / patch，并生成两份变更文档：
   - **技术向** → `releases/ai-web-reading-assistant-v<版本>/update_release_doc.md`（本次构建变更了哪些内容）；
   - **产品向** → 追加到 `releases/update.md`（里程碑 / 时间 / 版本迭代内容，每次构建向文件末尾追加）。
@@ -54,9 +54,12 @@ npm install                  # 依赖缺失时
 ### 3. 执行构建 + 发布
 
 ```sh
-npm run build                      # 递增级别由大模型自动判定（推荐）
+npm run build                      # 递增级别由大模型自动判定（推荐），出包后自动提交并推送
 BUMP=minor npm run build           # 手动覆盖：major | minor | patch
+NO_PUSH=1 npm run build            # 仅本地出包，不提交、不推送（调试 / 脱机）
 ```
+
+> 自动提交会 `git add -A` 并提交**所有**本地变更（含 `package.json` / `public/manifest.json` 版本变更），提交信息形如 `build: 发布 v1.2.0（minor）`，随后 `git push` 到 `origin` 当前分支。`dist/` 与 `releases/` 在 `.gitignore` 中，不会进入提交。无远程、无变更、提交或推送失败时仅告警不中断（zip 已产出）。
 
 ### 4. 核对产物（必须）
 
@@ -86,6 +89,9 @@ python3 -c "import json;print(json.load(open('package.json'))['version'])"
 | `[release] 版本递增：1.0.0 → v1.0.1（patch）` + `📄 已生成 ...update_release_doc.md` + `✅ 已生成 releases/.../` | 正常发布 | 按“核对产物”检查 |
 | `[release] ℹ️ dist 无任何变动，跳过打包（版本保持 v1.0.0）` | 无代码变化 | 无需动作；若确实改了代码，先确认改动进了 dist（见下） |
 | `[release] 🤖 大模型判定递增级别：...` / `📄 已生成 ... 并追加 releases/update.md` | 大模型正常参与判定与文档生成 | 复核级别是否符合预期，不符可 `BUMP=...` 覆盖重跑 |
+| `[release] 📦 待提交变更：` + `🚀 已提交并推送：build: 发布 vX.Y.Z（...）` | 版本号与源码已提交并推送到远程 | 核对远程仓库收到提交 |
+| `[release] ⏭️ 已设置 NO_PUSH，跳过 git 提交与推送` | 本次仅本地出包 | 无需动作；后续可手动 commit/push |
+| `[release] ⚠️ git 提交失败 / 推送失败 ...` | git 身份未配置 / 远程有新提交 | 配置 git 用户信息；或 `git pull --rebase && git push` 手动处理 |
 | `[release] ⚠️ ... 按 patch 兜底` / `⚠️ ... 使用 git 摘要兜底` | 缺基线或大模型失败 | 为上一版本补标签 `git tag v<版本>`，或检查 `.env` 模型配置后重跑 |
 | `[postbuild] ❌ 缺少产物文件` | 构建不完整 | 检查源码/依赖，修复后重跑 |
 | `[release] ❌ zip 打包失败` | 系统无 `zip` 命令或磁盘问题 | 安装 zip 或清理 releases 后重跑 |

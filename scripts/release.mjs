@@ -10,11 +10,14 @@
  *     - 技术向 → 版本目录/update_release_doc.md（本次构建变更了哪些内容）
  *     - 产品向 → 追加到 releases/update.md（里程碑 / 时间 / 版本迭代内容）
  *  6. 同步版本号到 dist/manifest.json、public/manifest.json、package.json
- *  7. 记录发布状态（版本 + 指纹 + 历史 + 本次 commit 基线）到 releases/version.json，
+ *  7. 提交并推送所有本地变更到远程仓库（含 package.json / public/manifest.json 的版本变更；
+ *     设置 NO_PUSH=1 可跳过，仅本地出包）
+ *  8. 记录发布状态（版本 + 指纹 + 历史 + 本次 commit 基线）到 releases/version.json，
  *     供下次构建时大模型做「上一版本 commit → 当前」的差异对比
  *
  * 用法：npm run build                                （级别由大模型自动判定）
  *       BUMP=minor npm run build                     （手动覆盖：major|minor|patch）
+ *       NO_PUSH=1 npm run build                      （不提交、不推送，仅本地出包）
  */
 import { execFileSync } from 'node:child_process'
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
@@ -44,6 +47,55 @@ const DIST = resolve(ROOT, 'dist')
 const RELEASES = resolve(ROOT, 'releases')
 const STATE_FILE = join(RELEASES, 'version.json')
 const PKG_FILE = join(ROOT, 'package.json')
+
+/**
+ * 提交并推送所有本地变更到远程仓库（含 package.json / public/manifest.json 的版本变更）。
+ * - 默认执行；设置 NO_PUSH=1 可跳过（仅本地出包）
+ * - 未配置远程 / 无可提交变更 / 提交或推送失败：仅告警、不中断构建（zip 已产出）
+ * 返回是否完成提交并推送。
+ */
+function pushChanges({ version, bump }) {
+  if (['1', 'true', 'yes'].includes((process.env.NO_PUSH || '').toLowerCase())) {
+    console.log('[release] ⏭️ 已设置 NO_PUSH，跳过 git 提交与推送')
+    return false
+  }
+  const run = (args) =>
+    execFileSync('git', args, { cwd: ROOT, encoding: 'utf-8', stdio: ['ignore', 'pipe', 'inherit'] })
+
+  // 无远程仓库则不提交（避免产生永远推不出去的本地提交）
+  try {
+    run(['remote', 'get-url', 'origin'])
+  } catch {
+    console.warn('[release] ⚠️ 未配置远程仓库 origin，跳过 git 提交与推送（产物保留在本地）')
+    return false
+  }
+
+  const status = run(['status', '--short']).trim()
+  if (!status) {
+    console.log('[release] ℹ️ 工作区无变更，无需提交')
+    return false
+  }
+  console.log(`[release] 📦 待提交变更：\n${status}`)
+
+  const msg = `build: 发布 v${version}（${bump}）`
+  try {
+    run(['add', '-A'])
+    run(['commit', '-m', msg])
+  } catch (e) {
+    console.warn(`[release] ⚠️ git 提交失败：${e?.message || e}，请手动处理（如配置 git 用户信息）`)
+    return false
+  }
+
+  try {
+    run(['push'])
+    console.log(`[release] 🚀 已提交并推送：${msg}`)
+    return true
+  } catch (e) {
+    console.warn(`[release] ⚠️ 推送失败（远程可能已有新提交）：${e?.message || e}`)
+    console.warn('[release] ⚠️ 请手动处理：git pull --rebase && git push')
+    return false
+  }
+}
 
 async function main() {
   const explicitBump = (process.env.BUMP || '').toLowerCase()
@@ -84,9 +136,9 @@ async function main() {
   }
 
   // 差异摘要（变更文档用；大模型判定时已顺带生成，手动 BUMP 时这里补算）
-  const head = gitHead()
+  const headBefore = gitHead()
   const baseline = resolveBaseline({ stateFile: STATE_FILE })
-  const diff = decided?.diff ?? (baseline && head ? collectDiffSummary(baseline.ref, head) : null)
+  const diff = decided?.diff ?? (baseline && headBefore ? collectDiffSummary(baseline.ref, headBefore) : null)
 
   // 3. 版本递增 + 唯一性
   const pkg = JSON.parse(readFileSync(PKG_FILE, 'utf-8'))
@@ -134,7 +186,10 @@ async function main() {
   syncVersion(join(ROOT, 'public/manifest.json'))
   syncVersion(PKG_FILE)
 
-  // 7. 记录发布状态（含本次 commit 与差异基线，供下次大模型判定）
+  // 7. 提交并推送所有本地变更到远程（含 package.json / public/manifest.json 版本变更）
+  pushChanges({ version, bump })
+
+  // 8. 记录发布状态（commit = 发布提交的 hash，供下次大模型差异对比）
   writeFileSync(
     STATE_FILE,
     JSON.stringify(
@@ -143,7 +198,7 @@ async function main() {
         bump,
         history: [...history, version],
         fingerprints,
-        commit: head,
+        commit: gitHead(),
         baselineCommit: baseline?.ref ?? null,
         baselineSource: baseline?.source ?? null,
         createdAt: new Date().toISOString(),
