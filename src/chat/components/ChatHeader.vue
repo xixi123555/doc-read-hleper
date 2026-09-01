@@ -16,6 +16,7 @@ const emit = defineEmits<{
   (e: 'expand'): void
   (e: 'history'): void
   (e: 'export'): void
+  (e: 'settings'): void
   (e: 'theme'): void
   (e: 'fullscreen'): void
   (e: 'collapse'): void
@@ -53,6 +54,7 @@ const emit = defineEmits<{
     <div class="flex items-center gap-0.5 shrink-0">
       <button class="icon-btn" title="历史记录" @click="emit('history')">🕘</button>
       <button class="icon-btn" title="总结导出" @click="emit('export')">📤</button>
+      <button class="icon-btn" title="设置" @click="emit('settings')">⚙️</button>
       <button class="icon-btn" :title="themeIcon" @click="emit('theme')">{{ themeIcon }}</button>
       <button class="icon-btn" title="全屏" @click="emit('fullscreen')">⛶</button>
       <button class="icon-btn" title="收起" @click="emit('collapse')">—</button>

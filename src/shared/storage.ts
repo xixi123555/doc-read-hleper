@@ -147,6 +147,24 @@ export async function clearDomainSessions(domain: string): Promise<void> {
   await safeSet({ [STORAGE_KEYS.sessions]: all })
 }
 
+/* ---------------- 弹窗打开模式标记 ---------------- */
+
+/** popup 打开模式标记：悬浮窗「设置」按钮唤起时置位，popup 读取后清除（避免「已配置→自动打开悬浮窗」死循环） */
+const POPUP_OPEN_FOR_SETTINGS = 'popupOpenForSettings'
+
+/** 标记下一次打开 popup 时直接展示配置页（由悬浮窗「设置」按钮调用） */
+export async function markPopupOpenForSettings(): Promise<void> {
+  await safeSet({ [POPUP_OPEN_FOR_SETTINGS]: true })
+}
+
+/** 读取并清除配置页唤起标记：返回 true 表示本次 popup 应直接展示配置页 */
+export async function consumePopupOpenForSettings(): Promise<boolean> {
+  const r = await chrome.storage.local.get(POPUP_OPEN_FOR_SETTINGS)
+  const flagged = !!r[POPUP_OPEN_FOR_SETTINGS]
+  if (flagged) await safeSet({ [POPUP_OPEN_FOR_SETTINGS]: false })
+  return flagged
+}
+
 /* ---------------- 弹窗快捷对话会话（与悬浮窗隔离） ---------------- */
 
 const POPUP_SESSIONS_KEY = 'popupChatSessions'

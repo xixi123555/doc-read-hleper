@@ -1,0 +1,220 @@
+<!--
+  Popup 配置页模板（popup 仅展示配置内容，不再内置快捷对话）
+  布局：加载态 → 设置页（总开关 / 当前网页 / 模型配置 / 划词翻译 / 快捷键 / 主题）
+  交互：返回对话 / 打开悬浮窗 → 直接唤起右侧悬浮对话窗并关闭 popup
+-->
+<n-config-provider :theme="naiveTheme" :theme-overrides="themeOverrides">
+  <n-global-style />
+  <div class="w-[380px] h-[600px] relative flex flex-col bg-bg text-text overflow-hidden">
+    <!-- 加载中 -->
+    <div v-if="checking" class="flex-1 flex items-center justify-center text-sm text-text-3">
+      加载中…
+    </div>
+
+    <!-- ============ 设置页 ============ -->
+    <template v-else>
+      <div class="flex-1 overflow-y-auto p-3 space-y-2.5">
+        <!-- 顶栏 -->
+        <header class="flex items-center gap-2">
+          <div
+            class="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-[#3b5bdb] text-white flex items-center justify-center text-[12px] font-bold shrink-0"
+          >
+            AI
+          </div>
+          <div class="flex-1 min-w-0">
+            <div class="text-[13px] font-semibold">AI 网页阅读助手</div>
+            <div class="text-[10px] text-text-3">设置 · 数据仅存本地</div>
+          </div>
+          <n-button v-if="configured" size="small" @click="openFloatingWindow()">← 返回对话</n-button>
+        </header>
+
+        <!-- 全局开关 -->
+        <section class="bg-card border border-border rounded-[10px] px-3 py-2.5 shadow-[var(--shadow)]">
+          <div class="flex items-center justify-between">
+            <div>
+              <div class="text-[12.5px] font-semibold">插件总开关</div>
+              <div class="text-[10px] text-text-3">关闭后所有功能静默失效</div>
+            </div>
+            <n-switch :value="settings.globalEnabled" @update:value="onGlobalSwitch" />
+          </div>
+        </section>
+
+        <!-- 当前网页 -->
+        <section class="bg-card border border-border rounded-[10px] px-3 py-2.5 shadow-[var(--shadow)]">
+          <div class="text-[12.5px] font-semibold mb-2">当前网页</div>
+          <div class="flex items-center justify-between">
+            <span class="text-[11px] text-text-2 truncate max-w-[220px]" :title="tabTitle">
+              {{ tabHost || '—' }}
+            </span>
+            <div class="flex items-center gap-1.5">
+              <span class="text-[10px] text-text-3">单独禁用</span>
+              <n-switch :value="tabDisabled" size="small" :disabled="!tabHost" @update:value="onTabDisable" />
+            </div>
+          </div>
+          <n-space class="mt-2">
+            <n-button size="small" @click="openFloatingWindow()">打开悬浮窗</n-button>
+          </n-space>
+        </section>
+
+        <!-- 模型配置 -->
+        <section class="bg-card border border-border rounded-[10px] px-3 py-2.5 shadow-[var(--shadow)]">
+          <div class="flex items-center justify-between mb-2">
+            <div class="text-[12.5px] font-semibold">大模型配置</div>
+            <n-tag v-if="activeModelName" size="small" type="info" class="max-w-[160px] !truncate">
+              {{ activeModelName }}
+            </n-tag>
+          </div>
+
+          <div class="mb-1.5">
+            <label class="block text-[10.5px] text-text-2 mb-0.5">预设模板</label>
+            <n-select :value="presetId" :options="presetOptions" size="small" @update:value="applyPreset" />
+          </div>
+          <div class="mb-1.5">
+            <label class="block text-[10.5px] text-text-2 mb-0.5">配置名称</label>
+            <n-input v-model:value="form.name" size="small" placeholder="如：DeepSeek 主用" />
+          </div>
+          <div class="mb-1.5">
+            <label class="block text-[10.5px] text-text-2 mb-0.5">模型接口地址 *</label>
+            <n-input v-model:value="form.baseUrl" size="small" placeholder="https://api.deepseek.com/v1" />
+          </div>
+          <div class="mb-1.5">
+            <label class="block text-[10.5px] text-text-2 mb-0.5">API 密钥（本地加密存储）</label>
+            <n-input
+              v-model:value="form.apiKey"
+              size="small"
+              type="password"
+              show-password-on="click"
+              placeholder="sk-...（本地免密模型可留空）"
+            />
+          </div>
+          <div class="mb-1.5">
+            <label class="block text-[10.5px] text-text-2 mb-0.5">模型名称 *</label>
+            <n-input v-model:value="form.model" size="small" placeholder="deepseek-chat / gpt-4o" />
+          </div>
+          <div class="mb-1.5">
+            <label class="block text-[10.5px] text-text-2 mb-0.5">Temperature：{{ form.temperature.toFixed(2) }}</label>
+            <n-slider v-model:value="form.temperature" :min="0" :max="1" :step="0.05" />
+          </div>
+          <div class="flex gap-2">
+            <div class="mb-1.5 flex-1">
+              <label class="block text-[10.5px] text-text-2 mb-0.5">最大上下文 (token)</label>
+              <n-input-number v-model:value="form.maxTokens" size="small" :min="512" :step="512" />
+            </div>
+            <div class="mb-1.5 flex-1">
+              <label class="block text-[10.5px] text-text-2 mb-0.5">超时 (秒)</label>
+              <n-input-number v-model:value="form.timeout" size="small" :min="5" :max="300" />
+            </div>
+          </div>
+          <div class="flex items-center gap-2 py-1">
+            <n-switch v-model:value="form.noKey" size="small" />
+            <span class="text-[11px] text-text-2">本地免密模型（无需密钥，如 Ollama）</span>
+          </div>
+
+          <n-alert v-if="validateResult" :type="validateResult.ok ? 'success' : 'error'" class="mt-2">
+            {{ validateResult.message }}
+          </n-alert>
+
+          <div class="flex items-center justify-between mt-2">
+            <n-button size="small" :loading="validating" @click="validateNow">校验接口</n-button>
+            <div class="flex gap-2">
+              <n-button v-if="editId" size="small" :loading="saving" @click="saveUpdate">更新配置</n-button>
+              <n-button v-else type="primary" size="small" :loading="saving" @click="saveAsNew">
+                保存并进入对话
+              </n-button>
+            </div>
+          </div>
+
+          <n-divider style="margin: 10px 0" />
+          <div class="flex flex-col gap-1.5 max-h-[150px] overflow-y-auto">
+            <div v-if="!configs.length" class="py-2"><n-empty size="small" description="暂无配置" /></div>
+            <div v-for="cfg in configs" :key="cfg.id" class="flex items-center gap-1.5 border border-border rounded-lg px-2 py-1.5">
+              <div class="flex-1 min-w-0 cursor-pointer" @click="editConfig(cfg)">
+                <div class="text-[11.5px] font-medium">{{ cfg.name }}</div>
+                <div class="text-[10px] text-text-3 truncate">{{ cfg.model }}</div>
+              </div>
+              <n-tag
+                size="tiny"
+                :type="cfg.id === activeId ? 'success' : 'default'"
+                :bordered="false"
+                class="cursor-pointer shrink-0"
+                @click="setActive(cfg.id)"
+              >
+                {{ cfg.id === activeId ? '生效中' : '启用' }}
+              </n-tag>
+              <n-button size="tiny" quaternary class="shrink-0" @click="removeConfig(cfg.id)">删除</n-button>
+            </div>
+          </div>
+        </section>
+
+        <!-- 划词翻译 -->
+        <section class="bg-card border border-border rounded-[10px] px-3 py-2.5 shadow-[var(--shadow)]">
+          <div class="flex items-center justify-between">
+            <div>
+              <div class="text-[12.5px] font-semibold">划词翻译</div>
+              <div class="text-[10px] text-text-3">选中英文即时翻译 · 支持音标/直译/上下文意译</div>
+            </div>
+            <n-switch :value="settings.translateEnabled" @update:value="onTranslateSwitch" />
+          </div>
+        </section>
+
+        <!-- 快捷键 -->
+        <section class="bg-card border border-border rounded-[10px] px-3 py-2.5 shadow-[var(--shadow)]">
+          <div class="text-[12.5px] font-semibold mb-1.5">快捷键</div>
+          <div v-for="cmd in commands" :key="cmd.name" class="flex items-center gap-2 py-0.5">
+            <span class="flex-1 text-[10px] text-text-3">{{ cmd.description }}</span>
+            <span class="text-[10px] font-mono bg-bg-soft border border-border rounded-md px-1.5 py-0.5 text-text-2">
+              {{ shortcutLabel(cmd) }}
+            </span>
+            <n-button v-if="canEditShortcut" size="tiny" quaternary @click="openShortcutEditor(cmd.name, cmd.shortcut || '')">
+              修改
+            </n-button>
+          </div>
+          <div v-if="!canEditShortcut" class="text-[10px] text-text-3 mt-1">
+            当前浏览器不支持面板内修改，请前往 chrome://extensions/shortcuts
+          </div>
+        </section>
+
+        <!-- 主题 -->
+        <section class="bg-card border border-border rounded-[10px] px-3 py-2.5 shadow-[var(--shadow)]">
+          <div class="flex items-center justify-between">
+            <div class="text-[12.5px] font-semibold">主题模式</div>
+            <n-select
+              :value="settings.theme"
+              :options="[
+                { label: '浅色', value: 'light' },
+                { label: '深色', value: 'dark' },
+                { label: '跟随系统', value: 'auto' },
+              ]"
+              size="small"
+              style="width: 110px"
+              @update:value="onThemeChange"
+            />
+          </div>
+        </section>
+
+        <footer class="text-center text-[10px] text-text-3 pb-1">数据仅存本地 · 不上传任何第三方</footer>
+      </div>
+    </template>
+
+    <!-- Toast -->
+    <div
+      v-if="toast"
+      class="absolute left-1/2 bottom-4 -translate-x-1/2 z-50 px-3.5 py-2 rounded-lg bg-card border border-border shadow-lg text-[11px] animate-[fadeIn_0.15s_ease]"
+      :class="toast.type === 'success' ? 'text-success' : toast.type === 'error' ? 'text-danger' : 'text-text'"
+    >
+      {{ toast.text }}
+    </div>
+
+    <!-- 快捷键编辑弹窗 -->
+    <n-modal v-model:show="shortcutModal" preset="card" title="修改快捷键" style="width: 300px">
+      <n-input v-model:value="shortcutInput" placeholder="如 Ctrl+Shift+Y" size="small" />
+      <div v-if="shortcutError" class="text-danger text-[10px] mt-1.5">{{ shortcutError }}</div>
+      <template #footer>
+        <n-space justify="end">
+          <n-button size="small" @click="shortcutModal = false">取消</n-button>
+          <n-button size="small" type="primary" @click="saveShortcut">保存</n-button>
+        </n-space>
+      </template>
+    </n-modal>
+  </div>
+</n-config-provider>

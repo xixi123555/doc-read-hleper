@@ -10,7 +10,7 @@ import { NConfigProvider, NGlobalStyle } from 'naive-ui'
 import { PM } from '../shared/msg'
 import { quickCommandById } from '../shared/prompts'
 import { logger } from '../shared/logger'
-import { getActiveConfig } from '../shared/storage'
+import { getActiveConfig, markPopupOpenForSettings } from '../shared/storage'
 import { useHostBridge } from './composables/useHostBridge'
 import { useTheme } from './composables/useTheme'
 import { useConversation } from './composables/useConversation'
@@ -142,6 +142,12 @@ function refreshContext() {
   void ensureContext().then(() => showToast('页面上下文已刷新'))
 }
 
+/** 打开配置页 popup：先置位标记（popup 读取后直接展示配置页），再同步唤起 popup */
+function openSettings() {
+  void markPopupOpenForSettings()
+  void chrome.action.openPopup().catch(() => showToast('无法打开设置页，请稍后重试'))
+}
+
 /* ---------------- 宿主消息 ---------------- */
 
 function onWindowMessage(e: MessageEvent) {
@@ -211,6 +217,7 @@ onBeforeUnmount(() => {
           :theme-icon="themeIcon()"
           @history="openHistory"
           @export="openExport"
+          @settings="openSettings"
           @theme="cycleTheme"
           @fullscreen="toggleFullscreen"
           @collapse="collapse"
