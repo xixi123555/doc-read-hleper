@@ -1,6 +1,6 @@
 {
   "name": "ai-web-reading-assistant",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "private": true,
   "description": "Chrome AI 网页阅读助手：网页智能解析 + AI 对话辅助 + 划词翻译 + 对话总结导出（Chrome Extension MV3 / Vue3 / Naive UI）",
   "type": "module",
