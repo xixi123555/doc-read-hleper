@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls src/*.json src/**/tsconfig*)",
+      "mcp__ide__getDiagnostics",
+      "Bash(npm run:*)",
+      "Bash(wc -l src/chat/components/*.vue src/chat/composables/*.ts)",
+      "Bash(ls -la /Users/tangxixi/Desktop/doc-read-hleper/.eslintrc* /Users/tangxixi/Desktop/doc-read-hleper/eslint.config.*)",
+      "Bash(python3 -c \"import json;d=json.load\\(open\\('/Users/tangxixi/Desktop/doc-read-hleper/package.json'\\)\\);print\\(json.dumps\\({k:v for k,v in d.get\\('scripts',{}\\).items\\(\\) if 'lint' in k.lower\\(\\) or 'eslint' in k.lower\\(\\)},ensure_ascii=False,indent=1\\)\\);print\\('devDeps eslint:', [k for k in d.get\\('devDependencies',{}\\) if 'eslint' in k.lower\\(\\)]\\)\")",
+      "Bash(grep -rl \"src.*\\\\.html\\\\|template.*src\\\\|block\\\\.type\" /Users/tangxixi/Desktop/doc-read-hleper/node_modules/@vitejs/plugin-vue/dist/*.mjs)"
+    ]
+  }
+}
