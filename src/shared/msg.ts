@@ -29,9 +29,7 @@ export const PM = {
   QuickCommand: 'quick-command', // host -> chat: 快捷指令（来自快捷键/弹窗）
   SetSize: 'set-size', // chat -> host: 请求调整窗口尺寸
   SetHeight: 'set-height', // translate iframe -> host: 内容自适应高度
-  DragStart: 'drag-start', // chat -> host
-  DragMove: 'drag-move', // chat -> host: 拖拽中的位移增量 {dx, dy}
-  DragEnd: 'drag-end', // chat -> host: 拖拽结束
+  DragStart: 'drag-start', // chat -> host: 开始拖拽 {offsetX, offsetY}（抓取点相对窗口左上角）
   ResizeStart: 'resize-start', // chat -> host
   Collapse: 'collapse', // chat -> host
   Expand: 'expand', // chat -> host

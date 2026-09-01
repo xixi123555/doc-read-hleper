@@ -342,32 +342,62 @@ function onWindowResize() {
 
 /* ---------------- 拖拽 / 缩放 ---------------- */
 
-/** 拖拽进行中标记：iframe 上报 DragStart/DragMove/DragEnd 驱动窗口位移 */
+/**
+ * 拖拽状态（成熟方案：宿主在 window 上接管 pointer 事件）。
+ * 鼠标按下发生在 iframe 内，指针事件会被 iframe 抢占、且 setPointerCapture 无法跨 iframe 边界，
+ * 因此拖拽开始时把 iframe 置为 pointer-events:none，让后续 pointermove/pointerup 直接落在宿主 window。
+ */
 let dragging = false
+let dragOffsetX = 0
+let dragOffsetY = 0
 
-function beginDrag() {
-  if (chatState !== 'open' || fullscreen) return
+function beginDrag(offsetX: number, offsetY: number) {
+  if (chatState !== 'open' || fullscreen || dragging) return
   dragging = true
+  winRect = currentRect()
+  // 抓取点偏移限制在窗口内，避免异常跳变
+  dragOffsetX = clampNum(offsetX, 0, winRect.width)
+  dragOffsetY = clampNum(offsetY, 0, winRect.height)
+  if (chatFrame) chatFrame.style.pointerEvents = 'none'
+  window.addEventListener('pointermove', onHostDragMove)
+  window.addEventListener('pointerup', onHostDragEnd)
+  window.addEventListener('pointercancel', onHostDragEnd)
+  window.addEventListener('blur', onHostDragEnd)
 }
 
-/** 按 iframe 上报的位移增量移动窗口（delta 方式，抓取点不跳变），并限制在可视区内 */
-function applyDragMove(dx: number, dy: number) {
-  if (!dragging || !chatBox) return
-  const r = currentRect()
+function onHostDragMove(e: PointerEvent) {
+  if (!dragging) return
   winRect = {
-    left: clampNum(r.left + dx, 0, Math.max(0, window.innerWidth - r.width)),
-    top: clampNum(r.top + dy, 0, Math.max(0, window.innerHeight - r.height)),
-    width: r.width,
-    height: r.height,
+    left: clampNum(e.clientX - dragOffsetX, 0, Math.max(0, window.innerWidth - winRect.width)),
+    top: clampNum(e.clientY - dragOffsetY, 0, Math.max(0, window.innerHeight - winRect.height)),
+    width: winRect.width,
+    height: winRect.height,
   }
   applyChatRect(winRect)
 }
 
-function endDrag() {
+function onHostDragEnd() {
   if (!dragging) return
   dragging = false
+  window.removeEventListener('pointermove', onHostDragMove)
+  window.removeEventListener('pointerup', onHostDragEnd)
+  window.removeEventListener('pointercancel', onHostDragEnd)
+  window.removeEventListener('blur', onHostDragEnd)
+  if (chatFrame) chatFrame.style.pointerEvents = ''
   winRect = currentRect()
   void persistWindowState()
+  suppressReleaseClick()
+}
+
+/** 拖拽结束后吞掉一次合成 click，避免松开鼠标时误点到宿主页面元素 */
+function suppressReleaseClick() {
+  const onClick = (e: MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    window.removeEventListener('click', onClick, true)
+  }
+  window.addEventListener('click', onClick, true)
+  window.setTimeout(() => window.removeEventListener('click', onClick, true), 300)
 }
 
 function startResize() {
@@ -451,13 +481,7 @@ function onWindowMessage(e: MessageEvent) {
       break
     }
     case PM.DragStart:
-      beginDrag()
-      break
-    case PM.DragMove:
-      applyDragMove(Number(msg.dx) || 0, Number(msg.dy) || 0)
-      break
-    case PM.DragEnd:
-      endDrag()
+      beginDrag(Number(msg.offsetX) || 0, Number(msg.offsetY) || 0)
       break
     case PM.ResizeStart:
       startResize()

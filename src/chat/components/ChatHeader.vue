@@ -21,7 +21,7 @@ const emit = defineEmits<{
   (e: 'fullscreen'): void
   (e: 'collapse'): void
   (e: 'close'): void
-  (e: 'dragDown', e: MouseEvent): void
+  (e: 'dragDown', e: PointerEvent): void
 }>()
 </script>
 
@@ -38,7 +38,7 @@ const emit = defineEmits<{
   <header
     v-else
     class="flex items-center justify-between gap-2 px-2.5 py-2 cursor-grab select-none border-b border-border bg-card shrink-0"
-    @mousedown="emit('dragDown', $event)"
+    @pointerdown="emit('dragDown', $event)"
   >
     <div class="min-w-0 flex-1">
       <div class="text-[13px] font-semibold truncate" :title="pageTitle">
