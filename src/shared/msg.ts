@@ -30,6 +30,8 @@ export const PM = {
   SetSize: 'set-size', // chat -> host: 请求调整窗口尺寸
   SetHeight: 'set-height', // translate iframe -> host: 内容自适应高度
   DragStart: 'drag-start', // chat -> host
+  DragMove: 'drag-move', // chat -> host: 拖拽中的位移增量 {dx, dy}
+  DragEnd: 'drag-end', // chat -> host: 拖拽结束
   ResizeStart: 'resize-start', // chat -> host
   Collapse: 'collapse', // chat -> host
   Expand: 'expand', // chat -> host

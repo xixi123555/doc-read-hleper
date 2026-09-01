@@ -37,12 +37,18 @@ export function useHostBridge() {
   }
 
   /**
-   * 浮窗拖拽：双击不松开才能拖动（500ms / 6px 容差的第二次按下才发送 DragStart），
-   * 单击顶栏只记录按下位置/时间，不触发拖动。
+   * 浮窗拖拽：双击特定区域（顶栏）后，第二次按下不松开即可拖动。
+   *  - 单击顶栏只记录按下位置/时间，不触发拖动；
+   *  - 第二次按下（容差内）进入拖动，由 iframe 自身监听 mousemove/mouseup 并上报位移增量。
+   * 说明：鼠标按下发生在 iframe 内，mousemove/mouseup 会被 iframe 捕获、宿主页面收不到，
+   * 因此不能像旧实现那样让宿主页面监听事件，改为 iframe 上报增量（delta）由宿主定位。
    */
-  const DRAG_DBLCLICK_MS = 500
-  const DRAG_DBLCLICK_DIST = 6
+  const DRAG_DBLCLICK_MS = 600
+  const DRAG_DBLCLICK_DIST = 8
   let lastHeadPress = { x: -1, y: -1, t: 0 }
+  let dragging = false
+  let lastDragX = 0
+  let lastDragY = 0
 
   function onHeadDragDown(e: MouseEvent) {
     if (isCollapsed.value || fullscreenLocal.value) return
@@ -54,7 +60,32 @@ export function useHostBridge() {
       now - prev.t <= DRAG_DBLCLICK_MS &&
       Math.abs(e.clientX - prev.x) <= DRAG_DBLCLICK_DIST &&
       Math.abs(e.clientY - prev.y) <= DRAG_DBLCLICK_DIST
-    if (isSecondPress) postToHost({ type: PM.DragStart, nonce: nonce.value })
+    if (!isSecondPress) return
+    e.preventDefault()
+    if (dragging) return
+    dragging = true
+    lastDragX = e.clientX
+    lastDragY = e.clientY
+    postToHost({ type: PM.DragStart, nonce: nonce.value })
+    window.addEventListener('mousemove', onDragMove)
+    window.addEventListener('mouseup', onDragUp)
+  }
+
+  function onDragMove(e: MouseEvent) {
+    if (!dragging) return
+    const dx = e.clientX - lastDragX
+    const dy = e.clientY - lastDragY
+    lastDragX = e.clientX
+    lastDragY = e.clientY
+    if (dx || dy) postToHost({ type: PM.DragMove, nonce: nonce.value, dx, dy })
+  }
+
+  function onDragUp() {
+    if (!dragging) return
+    dragging = false
+    window.removeEventListener('mousemove', onDragMove)
+    window.removeEventListener('mouseup', onDragUp)
+    postToHost({ type: PM.DragEnd, nonce: nonce.value })
   }
 
   function onResizeDown(e: MouseEvent) {

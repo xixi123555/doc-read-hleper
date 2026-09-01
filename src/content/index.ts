@@ -342,30 +342,32 @@ function onWindowResize() {
 
 /* ---------------- 拖拽 / 缩放 ---------------- */
 
-function startDrag() {
-  if (!chatBox || !chatFrame) return
-  const rect = chatBox.getBoundingClientRect()
-  let dx = 0
-  let dy = 0
-  let first = true
-  chatFrame.style.pointerEvents = 'none'
-  const onMove = (e: MouseEvent) => {
-    if (first) {
-      dx = e.clientX - rect.left
-      dy = e.clientY - rect.top
-      first = false
-    }
-    chatBox!.style.left = `${clampNum(e.clientX - dx, 0, window.innerWidth - rect.width)}px`
-    chatBox!.style.top = `${clampNum(e.clientY - dy, 0, window.innerHeight - rect.height)}px`
+/** 拖拽进行中标记：iframe 上报 DragStart/DragMove/DragEnd 驱动窗口位移 */
+let dragging = false
+
+function beginDrag() {
+  if (chatState !== 'open' || fullscreen) return
+  dragging = true
+}
+
+/** 按 iframe 上报的位移增量移动窗口（delta 方式，抓取点不跳变），并限制在可视区内 */
+function applyDragMove(dx: number, dy: number) {
+  if (!dragging || !chatBox) return
+  const r = currentRect()
+  winRect = {
+    left: clampNum(r.left + dx, 0, Math.max(0, window.innerWidth - r.width)),
+    top: clampNum(r.top + dy, 0, Math.max(0, window.innerHeight - r.height)),
+    width: r.width,
+    height: r.height,
   }
-  const onUp = () => {
-    document.removeEventListener('mousemove', onMove)
-    document.removeEventListener('mouseup', onUp)
-    if (chatFrame) chatFrame.style.pointerEvents = ''
-    winRect = currentRect()
-  }
-  document.addEventListener('mousemove', onMove)
-  document.addEventListener('mouseup', onUp)
+  applyChatRect(winRect)
+}
+
+function endDrag() {
+  if (!dragging) return
+  dragging = false
+  winRect = currentRect()
+  void persistWindowState()
 }
 
 function startResize() {
@@ -449,7 +451,13 @@ function onWindowMessage(e: MessageEvent) {
       break
     }
     case PM.DragStart:
-      startDrag()
+      beginDrag()
+      break
+    case PM.DragMove:
+      applyDragMove(Number(msg.dx) || 0, Number(msg.dy) || 0)
+      break
+    case PM.DragEnd:
+      endDrag()
       break
     case PM.ResizeStart:
       startResize()
