@@ -42,7 +42,7 @@ import {
 import { decryptText, encryptText } from '../shared/crypto'
 import { PRESETS, createConfigFromPreset } from '../shared/presets'
 import { darkOverrides, lightOverrides, resolveTheme } from '../shared/theme'
-import { RT } from '../shared/msg'
+import { getContentScriptFile, RT } from '../shared/msg'
 
 /* ---------------- 主题 ---------------- */
 
@@ -362,7 +362,7 @@ async function ensureContentScript(tabId: number): Promise<boolean> {
     /* 未注入 */
   }
   try {
-    await chrome.scripting.executeScript({ target: { tabId }, files: ['content.js'] })
+    await chrome.scripting.executeScript({ target: { tabId }, files: [getContentScriptFile()] })
     await new Promise((r) => setTimeout(r, 150))
     await chrome.tabs.sendMessage(tabId, { type: RT.Ping })
     return true

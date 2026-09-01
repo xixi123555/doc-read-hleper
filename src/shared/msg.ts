@@ -8,6 +8,16 @@ export const HOST_ID = 'dsh-ai-reader-host'
 export const CHAT_IFRAME_URL = chrome.runtime.getURL('chat.html')
 export const TRANSLATE_IFRAME_URL = chrome.runtime.getURL('translate.html')
 
+/**
+ * 动态注入内容脚本用的真实文件名。
+ * 构建产物为带指纹的 js/content-*.js（postbuild 已把 manifest 重写为该名称），
+ * 不能写死 content.js，否则旧标签页按需注入会因文件不存在而失败。
+ */
+export function getContentScriptFile(): string {
+  const js = chrome.runtime.getManifest().content_scripts?.[0]?.js
+  return js?.[0] || 'content.js'
+}
+
 /** runtime 消息（host <-> background / popup <-> background / background -> host） */
 export const RT = {
   GetTabId: 'get-tab-id',

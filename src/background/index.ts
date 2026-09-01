@@ -5,7 +5,7 @@
  */
 import { STORAGE } from './state'
 import { logger } from '../shared/logger'
-import { RT } from '../shared/msg'
+import { RT, getContentScriptFile } from '../shared/msg'
 import { AgentRuntime } from './agent/AgentRuntime'
 import { CapabilityRegistry } from './capabilities/Capability'
 import { ChatCapability } from './capabilities/ChatCapability'
@@ -112,7 +112,7 @@ async function sendToActiveTab(message: any) {
     await chrome.tabs.sendMessage(tab.id, { type: RT.Ping })
   } catch {
     try {
-      await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['content.js'] })
+      await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: [getContentScriptFile()] })
       await new Promise((r) => setTimeout(r, 150))
     } catch {
       return
