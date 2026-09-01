@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "AI 网页阅读助手",
-  "version": "2.2.0",
+  "version": "2.2.1",
   "description": "网页智能解析 + AI 对话辅助：技术文档阅读、代码解读、划词翻译、对话总结导出。支持自定义任意 OpenAI 兼容大模型。",
   "minimum_chrome_version": "102",
   "permissions": [
